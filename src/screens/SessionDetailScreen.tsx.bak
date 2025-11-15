@@ -1,0 +1,253 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import { Card, Button } from '../components';
+import { COLORS, SPACING, TYPOGRAPHY } from '../constants';
+import { storageService } from '../services/storage';
+import type { Session } from '../models';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface SessionDetailScreenProps {
+  session: Session;
+  onEdit: () => void;
+  onDelete: () => void;
+  onViewExercises: () => void;
+  onBack: () => void;
+}
+
+export function SessionDetailScreen({
+  session,
+  onEdit,
+  onDelete,
+  onViewExercises,
+  onBack,
+}: SessionDetailScreenProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Excluir Sessão',
+      'Tem certeza que deseja excluir esta sessão? Esta ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              await storageService.deleteSession(session.id);
+              Alert.alert('Sucesso', 'Sessão excluída!');
+              onDelete();
+            } catch (error) {
+              console.error('Error deleting session:', error);
+              Alert.alert('Erro', 'Não foi possível excluir a sessão');
+              setIsDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleToggleComplete = async () => {
+    setIsCompleting(true);
+    try {
+      if (session.completedAt) {
+        // Marcar como não concluído
+        await storageService.updateSession(session.id, {
+          completedAt: null,
+          needsSync: true,
+        });
+        Alert.alert('Sucesso', 'Sessão marcada como não concluída!');
+      } else {
+        // Marcar como concluído
+        await storageService.updateSession(session.id, {
+          completedAt: new Date(),
+          needsSync: true,
+        });
+        Alert.alert('Sucesso', 'Sessão marcada como concluída! 🎉');
+      }
+      onBack(); // Reload the list
+    } catch (error) {
+      console.error('Error toggling completion:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar a sessão');
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  const isCompleted = !!session.completedAt;
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.header}>
+        <Button title="← Voltar" onPress={onBack} variant="outline" size="small" />
+      </View>
+
+      <Text style={styles.title}>{session.name}</Text>
+
+      {isCompleted && (
+        <Card style={[styles.card, styles.completedCard]}>
+          <Text style={styles.completedTitle}>✅ Treino Concluído!</Text>
+          <Text style={styles.completedText}>
+            {format(session.completedAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+          </Text>
+        </Card>
+      )}
+
+      <Card style={styles.card}>
+        <Text style={styles.sectionTitle}>📋 Informações</Text>
+        
+        <View style={styles.infoRow}>
+          <Text style={styles.label}>Data Agendada:</Text>
+          <Text style={styles.value}>
+            {format(session.scheduledAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+          </Text>
+        </View>
+
+        {session.notes && (
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Observações:</Text>
+            <Text style={styles.value}>{session.notes}</Text>
+          </View>
+        )}
+
+        <View style={styles.infoRow}>
+          <Text style={styles.label}>Status:</Text>
+          <Text style={[styles.value, styles.statusBadge]}>
+            {session.needsSync ? '🔄 Pendente sync' : '✅ Sincronizado'}
+          </Text>
+        </View>
+      </Card>
+
+      <Card style={styles.card}>
+        <Text style={styles.sectionTitle}>🏋️ Exercícios</Text>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>💪</Text>
+          <Text style={styles.emptyText}>
+            Gerencie os exercícios desta sessão de treino
+          </Text>
+          <Button
+            title="📋 Ver Exercícios"
+            onPress={onViewExercises}
+            size="small"
+            style={styles.addButton}
+          />
+        </View>
+      </Card>
+
+      <View style={styles.actions}>
+        <Button
+          title={isCompleted ? '↩️ Marcar como Não Concluído' : '✅ Marcar como Concluído'}
+          onPress={handleToggleComplete}
+          loading={isCompleting}
+          disabled={isCompleting}
+          fullWidth
+        />
+        <Button
+          title="✏️ Editar"
+          onPress={onEdit}
+          variant="secondary"
+          fullWidth
+        />
+        <Button
+          title="🗑️ Excluir"
+          onPress={handleDelete}
+          variant="danger"
+          loading={isDeleting}
+          disabled={isDeleting}
+          fullWidth
+        />
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background.secondary,
+  },
+  content: {
+    padding: SPACING.lg,
+  },
+  header: {
+    marginBottom: SPACING.md,
+  },
+  title: {
+    fontSize: TYPOGRAPHY.size['3xl'],
+    fontWeight: TYPOGRAPHY.weight.bold as any,
+    color: COLORS.text.primary,
+    marginBottom: SPACING.xl,
+  },
+  card: {
+    marginBottom: SPACING.md,
+  },
+  completedCard: {
+    backgroundColor: COLORS.success[50],
+    borderColor: COLORS.success[600],
+    borderWidth: 2,
+  },
+  completedTitle: {
+    fontSize: TYPOGRAPHY.size.xl,
+    fontWeight: TYPOGRAPHY.weight.bold as any,
+    color: COLORS.success[700],
+    marginBottom: SPACING.xs,
+  },
+  completedText: {
+    fontSize: TYPOGRAPHY.size.base,
+    color: COLORS.success[600],
+  },
+  sectionTitle: {
+    fontSize: TYPOGRAPHY.size.xl,
+    fontWeight: TYPOGRAPHY.weight.semibold as any,
+    color: COLORS.text.primary,
+    marginBottom: SPACING.md,
+  },
+  infoRow: {
+    marginBottom: SPACING.sm,
+  },
+  label: {
+    fontSize: TYPOGRAPHY.size.sm,
+    color: COLORS.text.secondary,
+    marginBottom: SPACING.xs,
+  },
+  value: {
+    fontSize: TYPOGRAPHY.size.base,
+    fontWeight: TYPOGRAPHY.weight.medium as any,
+    color: COLORS.text.primary,
+  },
+  statusBadge: {
+    color: COLORS.primary[600],
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: SPACING.md,
+  },
+  emptyText: {
+    fontSize: TYPOGRAPHY.size.base,
+    color: COLORS.text.secondary,
+    textAlign: 'center',
+    marginBottom: SPACING.lg,
+  },
+  addButton: {
+    minWidth: 200,
+  },
+  actions: {
+    gap: SPACING.md,
+    marginTop: SPACING.lg,
+  },
+});
+

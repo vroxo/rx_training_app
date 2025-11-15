@@ -1,0 +1,3 @@
+Resolver problema do date picker, clico em um dia e ele pega d-1
+Relatório da Periodização
+Ajustar time zone
