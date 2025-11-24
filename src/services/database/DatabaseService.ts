@@ -362,8 +362,8 @@ export class DatabaseService {
     const now = new Date().toISOString();
 
     await db.runAsync(
-      `INSERT INTO sets (id, user_id, exercise_id, order_index, repetitions, weight, technique, set_type, rest_time, rir, rpe, notes, drop_set_weights, drop_set_reps, rest_pause_duration, cluster_reps, cluster_rest_duration, created_at, updated_at, needs_sync)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      `INSERT INTO sets (id, user_id, exercise_id, order_index, repetitions, weight, technique, set_type, rest_time, rir, rpe, notes, drop_set_weights, drop_set_reps, rest_pause_duration, rest_pause_reps, cluster_reps, cluster_rest_duration, created_at, updated_at, needs_sync)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
         data.id,
         data.userId,
@@ -380,6 +380,7 @@ export class DatabaseService {
         data.dropSetWeights ? JSON.stringify(data.dropSetWeights) : null,
         data.dropSetReps ? JSON.stringify(data.dropSetReps) : null,
         data.restPauseDuration || null,
+        data.restPauseReps ? JSON.stringify(data.restPauseReps) : null,
         data.clusterReps || null,
         data.clusterRestDuration || null,
         now,
@@ -444,6 +445,10 @@ export class DatabaseService {
     if (data.restPauseDuration !== undefined) {
       fields.push('rest_pause_duration = ?');
       values.push(data.restPauseDuration);
+    }
+    if (data.restPauseReps !== undefined) {
+      fields.push('rest_pause_reps = ?');
+      values.push(data.restPauseReps ? JSON.stringify(data.restPauseReps) : null);
     }
     if (data.clusterReps !== undefined) {
       fields.push('cluster_reps = ?');
@@ -740,6 +745,7 @@ export class DatabaseService {
       dropSetWeights: row.drop_set_weights ? JSON.parse(row.drop_set_weights) : undefined,
       dropSetReps: row.drop_set_reps ? JSON.parse(row.drop_set_reps) : undefined,
       restPauseDuration: row.rest_pause_duration,
+      restPauseReps: row.rest_pause_reps ? JSON.parse(row.rest_pause_reps) : undefined,
       clusterReps: row.cluster_reps,
       clusterRestDuration: row.cluster_rest_duration,
       createdAt: new Date(row.created_at),

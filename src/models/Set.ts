@@ -23,6 +23,7 @@ export interface Set {
   
   // Rest Pause fields
   restPauseDuration?: number; // Duração do descanso em segundos (ex: 15-20s)
+  restPauseReps?: number[]; // Array de repetições para cada rodada (ex: [10, 3, 2])
   
   // Cluster Set fields
   clusterReps?: number; // Reps por mini-série

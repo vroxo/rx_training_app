@@ -117,25 +117,27 @@ export function TechniqueFields({
     return (
       <View style={styles.techniqueContainer}>
         <Text style={[styles.techniqueTitle, { color: colors.text.secondary }]}>
-          Rest Pause - Duração do Descanso
+          Rest Pause - Configuração
         </Text>
         <View style={styles.inputRow}>
-          <TextInput
-            style={[styles.input, { 
-              backgroundColor: colors.background.primary, 
-              borderColor: colors.border, 
-              color: colors.text.primary 
-            }]}
-            placeholder="15-20"
-            placeholderTextColor={colors.text.tertiary}
-            keyboardType="numeric"
-            value={restPauseDuration?.toString() || ''}
-            onChangeText={(value) => onRestPauseDurationChange?.(parseInt(value) || 0)}
-          />
-          <Text style={[styles.unit, { color: colors.text.secondary }]}>segundos</Text>
+          <View style={styles.clusterInputGroup}>
+            <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Descanso (s)</Text>
+            <TextInput
+              style={[styles.input, { 
+                backgroundColor: colors.background.primary, 
+                borderColor: colors.border, 
+                color: colors.text.primary 
+              }]}
+              placeholder="15-20"
+              placeholderTextColor={colors.text.tertiary}
+              keyboardType="numeric"
+              value={restPauseDuration?.toString() || ''}
+              onChangeText={(value) => onRestPauseDurationChange?.(parseInt(value) || 0)}
+            />
+          </View>
         </View>
         <Text style={[styles.hint, { color: colors.text.tertiary }]}>
-          Tempo de pausa entre as repetições (5-60s)
+          Faça repetições até a falha, pause o tempo definido e continue
         </Text>
       </View>
     );

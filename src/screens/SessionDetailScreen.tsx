@@ -146,6 +146,7 @@ export function SessionDetailScreen({
     dropSetWeights: number[];
     dropSetReps: number[];
     restPauseDuration: string;
+    restPauseReps: number[];
     clusterReps: string;
     clusterRestDuration: string;
   }>({ 
@@ -158,6 +159,7 @@ export function SessionDetailScreen({
     dropSetWeights: [],
     dropSetReps: [],
     restPauseDuration: '',
+    restPauseReps: [],
     clusterReps: '',
     clusterRestDuration: ''
   });
@@ -514,6 +516,7 @@ export function SessionDetailScreen({
       dropSetWeights: set.dropSetWeights || [],
       dropSetReps: set.dropSetReps || [],
       restPauseDuration: set.restPauseDuration?.toString() || '',
+      restPauseReps: set.restPauseReps || [],
       clusterReps: set.clusterReps?.toString() || '',
       clusterRestDuration: set.clusterRestDuration?.toString() || '',
     });
@@ -545,6 +548,7 @@ export function SessionDetailScreen({
       dropSetWeights: [],
       dropSetReps: [],
       restPauseDuration: '',
+      restPauseReps: [],
       clusterReps: '',
       clusterRestDuration: ''
     });
@@ -572,6 +576,8 @@ export function SessionDetailScreen({
       const restPauseDuration = editValues.technique === 'restpause' && editValues.restPauseDuration 
         ? parseInt(editValues.restPauseDuration) 
         : undefined;
+      // Rest pause reps não são mais usados na UI simplificada
+      const restPauseReps = undefined;
       const clusterReps = editValues.technique === 'clusterset' && editValues.clusterReps 
         ? parseInt(editValues.clusterReps) 
         : undefined;
@@ -612,6 +618,7 @@ export function SessionDetailScreen({
           dropSetWeights,
           dropSetReps,
           restPauseDuration,
+          restPauseReps,
           clusterReps,
           clusterRestDuration,
           notes: undefined,
@@ -643,6 +650,7 @@ export function SessionDetailScreen({
           dropSetWeights,
           dropSetReps,
           restPauseDuration,
+          restPauseReps,
           clusterReps,
           clusterRestDuration,
           needsSync: true,
@@ -1377,7 +1385,10 @@ export function SessionDetailScreen({
                                                 </View>
                                                 <View style={styles.techniqueDetailContent}>
                                                   <Text style={[styles.techniqueDetailText, { color: colors.text.primary }]}>
-                                                    Pausas de <Text style={{ fontWeight: '600' }}>{set.restPauseDuration}s</Text> entre repetições
+                                                    Pausas de <Text style={{ fontWeight: '600' }}>{set.restPauseDuration}s</Text> entre mini-sets
+                                                  </Text>
+                                                  <Text style={[styles.techniqueDetailText, { color: colors.text.secondary, fontSize: TYPOGRAPHY.size.xs }]}>
+                                                    Faça reps até a falha → pause {set.restPauseDuration}s → continue até não conseguir mais
                                                   </Text>
                                                 </View>
                                               </>

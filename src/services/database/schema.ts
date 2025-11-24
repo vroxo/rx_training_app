@@ -70,6 +70,7 @@ export const CREATE_TABLES_SQL = `
     drop_set_weights TEXT,
     drop_set_reps TEXT,
     rest_pause_duration INTEGER,
+    rest_pause_reps TEXT,
     cluster_reps INTEGER,
     cluster_rest_duration INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -137,6 +138,9 @@ export const MIGRATIONS_SQL = `
   
   -- Add rest_pause_duration column
   ALTER TABLE sets ADD COLUMN rest_pause_duration INTEGER;
+  
+  -- Add rest_pause_reps column (stored as JSON string)
+  ALTER TABLE sets ADD COLUMN rest_pause_reps TEXT;
   
   -- Add cluster_reps column
   ALTER TABLE sets ADD COLUMN cluster_reps INTEGER;
