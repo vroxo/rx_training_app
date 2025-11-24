@@ -265,6 +265,7 @@ export function SessionDetailScreen({
           console.log(`🎯 Set ${set.id} - Technique: ${set.technique}`, {
             dropSetWeights: set.dropSetWeights,
             restPauseDuration: set.restPauseDuration,
+            restPauseReps: set.restPauseReps,
             clusterReps: set.clusterReps,
             clusterRestDuration: set.clusterRestDuration,
           });
@@ -578,6 +579,16 @@ export function SessionDetailScreen({
       const restPauseReps = editValues.technique === 'restpause' && editValues.restPauseReps.length > 0
         ? editValues.restPauseReps
         : undefined;
+      
+      // Debug: Log Rest Pause data
+      if (editValues.technique === 'restpause') {
+        console.log('🎯 [REST PAUSE] Salvando série:', {
+          technique: editValues.technique,
+          restPauseReps: editValues.restPauseReps,
+          restPauseRepsLength: editValues.restPauseReps.length,
+          finalRestPauseReps: restPauseReps,
+        });
+      }
       const clusterReps = editValues.technique === 'clusterset' && editValues.clusterReps 
         ? parseInt(editValues.clusterReps) 
         : undefined;
@@ -756,8 +767,13 @@ export function SessionDetailScreen({
     if (set.technique === 'dropset' && set.dropSetWeights) {
       return `${set.dropSetWeights.length}x`;
     }
-    if (set.technique === 'restpause' && set.restPauseDuration) {
-      return `${set.restPauseDuration}s`;
+    if (set.technique === 'restpause' && set.restPauseReps && set.restPauseReps.length > 0) {
+      // Show compact info: "15s×3" if all same, or "10s+15s+20s" if different
+      const allSame = set.restPauseReps.every(d => d === set.restPauseReps![0]);
+      if (allSame) {
+        return `${set.restPauseReps[0]}s×${set.restPauseReps.length}`;
+      }
+      return set.restPauseReps.slice(0, 3).join('s+') + 's' + (set.restPauseReps.length > 3 ? '...' : '');
     }
     if (set.technique === 'clusterset') {
       if (set.clusterReps) return `${set.clusterReps}r`;
@@ -1872,7 +1888,7 @@ export function SessionDetailScreen({
                                   backgroundColor: `${getTechniqueColor(set.technique)}15`,
                                   borderLeftColor: getTechniqueColor(set.technique)
                                 }]}>
-                                  {set.technique === 'restpause' && set.restPauseDuration && (
+                                  {set.technique === 'restpause' && set.restPauseReps && set.restPauseReps.length > 0 && (
                                     <>
                                       <View style={styles.techniqueDetailHeader}>
                                         <Ionicons name="pause-circle" size={18} color={getTechniqueColor(set.technique)} />
@@ -1881,9 +1897,29 @@ export function SessionDetailScreen({
                                         </Text>
                                       </View>
                                       <View style={styles.techniqueDetailContent}>
-                                        <Text style={[styles.techniqueDetailText, { color: colors.text.primary }]}>
-                                          Pausas de <Text style={{ fontWeight: '600' }}>{set.restPauseDuration}s</Text> entre repetições
+                                        <Text style={[styles.techniqueDetailText, { color: colors.text.secondary, fontSize: TYPOGRAPHY.size.xs, marginBottom: SPACING.xs }]}>
+                                          Faça reps até a falha, pause e continue
                                         </Text>
+                                        <View style={styles.restPauseTimersContainer}>
+                                          {set.restPauseReps.map((duration, idx) => (
+                                            <TouchableOpacity
+                                              key={idx}
+                                              onPress={() => handleStartTimer(duration)}
+                                              style={[styles.restPauseTimerButton, { 
+                                                backgroundColor: colors.background.secondary,
+                                                borderColor: getTechniqueColor('restpause')
+                                              }]}
+                                            >
+                                              <View style={[styles.restPauseTimerBadge, { backgroundColor: getTechniqueColor('restpause') }]}>
+                                                <Text style={styles.restPauseTimerBadgeText}>{idx + 1}</Text>
+                                              </View>
+                                              <Ionicons name="timer" size={20} color={getTechniqueColor('restpause')} />
+                                              <Text style={[styles.restPauseTimerText, { color: colors.text.primary }]}>
+                                                {duration}s
+                                              </Text>
+                                            </TouchableOpacity>
+                                          ))}
+                                        </View>
                                       </View>
                                     </>
                                   )}
