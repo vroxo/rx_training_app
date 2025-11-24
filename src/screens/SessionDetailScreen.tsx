@@ -776,6 +776,10 @@ export function SessionDetailScreen({
       return set.restPauseReps.slice(0, 3).join('s+') + 's' + (set.restPauseReps.length > 3 ? '...' : '');
     }
     if (set.technique === 'clusterset') {
+      // Show compact info: "3r/10s" (3 reps per cluster, 10s rest)
+      if (set.clusterReps && set.clusterRestDuration) {
+        return `${set.clusterReps}r/${set.clusterRestDuration}s`;
+      }
       if (set.clusterReps) return `${set.clusterReps}r`;
       return '';
     }
@@ -1435,16 +1439,33 @@ export function SessionDetailScreen({
                                                   </Text>
                                                 </View>
                                                 <View style={styles.techniqueDetailContent}>
-                                                  {set.clusterReps && (
-                                                    <Text style={[styles.techniqueDetailText, { color: colors.text.primary }]}>
-                                                      <Text style={{ fontWeight: '600' }}>{set.clusterReps}</Text> reps por cluster
-                                                    </Text>
-                                                  )}
-                                                  {set.clusterRestDuration && (
-                                                    <Text style={[styles.techniqueDetailText, { color: colors.text.primary }]}>
-                                                      <Text style={{ fontWeight: '600' }}>{set.clusterRestDuration}s</Text> de descanso entre clusters
-                                                    </Text>
-                                                  )}
+                                                  <Text style={[styles.techniqueDetailText, { color: colors.text.secondary, fontSize: TYPOGRAPHY.size.xs, marginBottom: SPACING.xs }]}>
+                                                    Mini-séries com descansos curtos entre elas
+                                                  </Text>
+                                                  <View style={styles.clusterInfoContainer}>
+                                                    {set.clusterReps && (
+                                                      <View style={styles.clusterInfoItem}>
+                                                        <Ionicons name="fitness" size={16} color={getTechniqueColor('clusterset')} />
+                                                        <Text style={[styles.clusterInfoText, { color: colors.text.primary }]}>
+                                                          <Text style={{ fontWeight: '600' }}>{set.clusterReps}</Text> reps
+                                                        </Text>
+                                                      </View>
+                                                    )}
+                                                    {set.clusterRestDuration && (
+                                                      <TouchableOpacity
+                                                        onPress={() => handleStartTimer(set.clusterRestDuration!)}
+                                                        style={[styles.clusterTimerButton, { 
+                                                          backgroundColor: colors.background.secondary,
+                                                          borderColor: getTechniqueColor('clusterset')
+                                                        }]}
+                                                      >
+                                                        <Ionicons name="timer" size={20} color={getTechniqueColor('clusterset')} />
+                                                        <Text style={[styles.clusterTimerText, { color: colors.text.primary }]}>
+                                                          {set.clusterRestDuration}s
+                                                        </Text>
+                                                      </TouchableOpacity>
+                                                    )}
+                                                  </View>
                                                 </View>
                                               </>
                                             )}
@@ -1932,16 +1953,33 @@ export function SessionDetailScreen({
                                         </Text>
                                       </View>
                                       <View style={styles.techniqueDetailContent}>
-                                        {set.clusterReps && (
-                                          <Text style={[styles.techniqueDetailText, { color: colors.text.primary }]}>
-                                            <Text style={{ fontWeight: '600' }}>{set.clusterReps}</Text> reps por cluster
-                                          </Text>
-                                        )}
-                                        {set.clusterRestDuration && (
-                                          <Text style={[styles.techniqueDetailText, { color: colors.text.primary }]}>
-                                            <Text style={{ fontWeight: '600' }}>{set.clusterRestDuration}s</Text> de descanso entre clusters
-                                          </Text>
-                                        )}
+                                        <Text style={[styles.techniqueDetailText, { color: colors.text.secondary, fontSize: TYPOGRAPHY.size.xs, marginBottom: SPACING.xs }]}>
+                                          Mini-séries com descansos curtos entre elas
+                                        </Text>
+                                        <View style={styles.clusterInfoContainer}>
+                                          {set.clusterReps && (
+                                            <View style={styles.clusterInfoItem}>
+                                              <Ionicons name="fitness" size={16} color={getTechniqueColor('clusterset')} />
+                                              <Text style={[styles.clusterInfoText, { color: colors.text.primary }]}>
+                                                <Text style={{ fontWeight: '600' }}>{set.clusterReps}</Text> reps
+                                              </Text>
+                                            </View>
+                                          )}
+                                          {set.clusterRestDuration && (
+                                            <TouchableOpacity
+                                              onPress={() => handleStartTimer(set.clusterRestDuration!)}
+                                              style={[styles.clusterTimerButton, { 
+                                                backgroundColor: colors.background.secondary,
+                                                borderColor: getTechniqueColor('clusterset')
+                                              }]}
+                                            >
+                                              <Ionicons name="timer" size={20} color={getTechniqueColor('clusterset')} />
+                                              <Text style={[styles.clusterTimerText, { color: colors.text.primary }]}>
+                                                {set.clusterRestDuration}s
+                                              </Text>
+                                            </TouchableOpacity>
+                                          )}
+                                        </View>
                                       </View>
                                     </>
                                   )}
@@ -2525,6 +2563,33 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.weight.bold as any,
   },
   restPauseTimerText: {
+    fontSize: TYPOGRAPHY.size.sm,
+    fontWeight: TYPOGRAPHY.weight.semibold as any,
+  },
+  clusterInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    flexWrap: 'wrap',
+  },
+  clusterInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  clusterInfoText: {
+    fontSize: TYPOGRAPHY.size.sm,
+  },
+  clusterTimerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: 8,
+    borderWidth: 2,
+  },
+  clusterTimerText: {
     fontSize: TYPOGRAPHY.size.sm,
     fontWeight: TYPOGRAPHY.weight.semibold as any,
   },

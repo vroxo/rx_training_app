@@ -63,9 +63,13 @@ export function getTechniqueCompactInfo(set: { technique?: string; restPauseReps
     return set.restPauseReps.join('s+') + 's';
   }
   
-  if (set.technique === 'clusterset' && set.clusterReps && set.clusterRestDuration) {
-    // Example: "3 reps / 10s"
-    return `${set.clusterReps} reps / ${set.clusterRestDuration}s`;
+  if (set.technique === 'clusterset') {
+    // Example: "3r/10s" (3 reps per cluster, 10s rest)
+    if (set.clusterReps && set.clusterRestDuration) {
+      return `${set.clusterReps}r/${set.clusterRestDuration}s`;
+    }
+    if (set.clusterReps) return `${set.clusterReps}r`;
+    return '';
   }
   
   return '';
