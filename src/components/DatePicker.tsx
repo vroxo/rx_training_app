@@ -64,9 +64,17 @@ export function DatePicker({
     // Tenta parsear a data quando estiver completa (formato: DD/MM/YYYY = 10 caracteres)
     if (formatted.length === 10) {
       try {
-        const parsed = parse(formatted, 'dd/MM/yyyy', new Date());
-        if (isValid(parsed)) {
-          onChange(parsed);
+        // Parse DD/MM/YYYY manualmente para evitar problemas de timezone
+        const [day, month, year] = formatted.split('/').map(Number);
+        
+        // Validação básica
+        if (year >= 1900 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          // Cria a data no timezone local com horário zerado
+          const newDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+          
+          if (isValid(newDate)) {
+            onChange(newDate);
+          }
         }
       } catch (e) {
         // Data inválida, não faz nada
@@ -137,7 +145,12 @@ export function DatePicker({
             type="date"
             value={format(value, 'yyyy-MM-dd')}
             onChange={(e) => {
-              const newDate = new Date(e.target.value);
+              // e.target.value retorna no formato "YYYY-MM-DD" (sem timezone)
+              // Precisamos criar uma Date no timezone local, não em UTC
+              const [year, month, day] = e.target.value.split('-').map(Number);
+              // Cria a data no timezone local com horário zerado
+              const newDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+              
               if (!isNaN(newDate.getTime())) {
                 onChange(newDate);
                 setTextValue(format(newDate, 'dd/MM/yyyy'));

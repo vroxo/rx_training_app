@@ -105,7 +105,8 @@ export class SyncService {
   }
 
   private async pushPeriodizations(userId: string): Promise<void> {
-    const localPeriodizations = await storageService.getAllPeriodizations(userId);
+    // ✅ Use *IncludingDeleted to sync deleted items too!
+    const localPeriodizations = await storageService.getAllPeriodizationsIncludingDeleted(userId);
     const needsSync = localPeriodizations.filter(p => p.needsSync);
 
     if (needsSync.length === 0) {
@@ -119,23 +120,40 @@ export class SyncService {
       try {
         const syncedAt = new Date();
         
+        console.log('🔍 [DEBUG] Pushing periodization:', {
+          id: periodization.id,
+          name: periodization.name,
+          deletedAt: periodization.deletedAt,
+          deletedAtISO: periodization.deletedAt?.toISOString(),
+        });
+        
         // Always use upsert, including deleted items (soft delete)
+        const payload = {
+          id: periodization.id,
+          user_id: periodization.userId,
+          name: periodization.name,
+          description: periodization.description,
+          start_date: periodization.startDate.toISOString(),
+          end_date: periodization.endDate.toISOString(),
+          created_at: periodization.createdAt.toISOString(),
+          updated_at: periodization.updatedAt.toISOString(),
+          deleted_at: periodization.deletedAt?.toISOString() || null, // ✅ Soft delete!
+          synced_at: syncedAt.toISOString(),
+        };
+        
+        console.log('📤 [DEBUG] Payload to Supabase:', payload);
+        
         const { error } = await supabase
           .from('periodizations')
-          .upsert({
-            id: periodization.id,
-            user_id: periodization.userId,
-            name: periodization.name,
-            description: periodization.description,
-            start_date: periodization.startDate.toISOString(),
-            end_date: periodization.endDate.toISOString(),
-            created_at: periodization.createdAt.toISOString(),
-            updated_at: periodization.updatedAt.toISOString(),
-            deleted_at: periodization.deletedAt?.toISOString() || null, // ✅ Soft delete!
-            synced_at: syncedAt.toISOString(),
-          });
+          .upsert(payload);
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ [DEBUG] Supabase error:', error);
+          throw error;
+        }
+        
+        console.log('✅ [DEBUG] Push successful!');
+
         
         // Update local with same timestamp
         await storageService.updatePeriodization(periodization.id, {
@@ -229,7 +247,8 @@ export class SyncService {
     let syncedCount = 0;
     
     for (const periodization of periodizations) {
-      const sessions = await storageService.getSessionsByPeriodization(periodization.id);
+      // ✅ Use *IncludingDeleted to sync deleted items too!
+      const sessions = await storageService.getSessionsByPeriodizationIncludingDeleted(periodization.id);
       const needsSync = sessions.filter(s => s.needsSync);
 
       if (needsSync.length === 0) continue;
@@ -364,7 +383,8 @@ export class SyncService {
       const sessions = await storageService.getSessionsByPeriodization(periodization.id);
       
       for (const session of sessions) {
-        const exercises = await storageService.getExercisesBySession(session.id);
+        // ✅ Use *IncludingDeleted to sync deleted items too!
+        const exercises = await storageService.getExercisesBySessionIncludingDeleted(session.id);
         const needsSync = exercises.filter(e => e.needsSync);
 
         if (needsSync.length === 0) continue;
@@ -385,6 +405,8 @@ export class SyncService {
                 muscle_group: exercise.muscleGroup,
                 equipment: exercise.equipmentType, // Fixed column name
                 order_index: exercise.orderIndex,
+                conjugated_group: exercise.conjugatedGroup || null,
+                conjugated_order: exercise.conjugatedOrder || null,
                 completed_at: exercise.completedAt?.toISOString() || null,
                 deleted_at: exercise.deletedAt?.toISOString() || null, // ✅ Soft delete!
                 created_at: exercise.createdAt.toISOString(),
@@ -460,6 +482,8 @@ export class SyncService {
             muscleGroup: remote.muscle_group,
             equipmentType: remote.equipment, // Fixed: equipment not equipment_type
             orderIndex: remote.order_index,
+            conjugatedGroup: remote.conjugated_group || undefined,
+            conjugatedOrder: remote.conjugated_order || undefined,
             completedAt: remote.completed_at ? new Date(remote.completed_at) : null,
             deletedAt: remote.deleted_at ? new Date(remote.deleted_at) : undefined, // ✅ Pull deleted_at
             syncedAt: new Date(),
@@ -477,6 +501,8 @@ export class SyncService {
             muscleGroup: remote.muscle_group,
             equipmentType: remote.equipment, // Fixed: equipment not equipment_type
             orderIndex: remote.order_index,
+            conjugatedGroup: remote.conjugated_group || undefined,
+            conjugatedOrder: remote.conjugated_order || undefined,
             completedAt: remote.completed_at ? new Date(remote.completed_at) : null,
             deletedAt: remote.deleted_at ? new Date(remote.deleted_at) : undefined, // ✅ Pull deleted_at
             updatedAt: remoteUpdated,
@@ -513,7 +539,8 @@ export class SyncService {
         const exercises = await storageService.getExercisesBySession(session.id);
         
         for (const exercise of exercises) {
-          const sets = await storageService.getSetsByExercise(exercise.id);
+          // ✅ Use *IncludingDeleted to sync deleted items too!
+          const sets = await storageService.getSetsByExerciseIncludingDeleted(exercise.id);
           const needsSync = sets.filter(s => s.needsSync);
 
           if (needsSync.length === 0) continue;
@@ -554,6 +581,12 @@ export class SyncService {
                   set_type: set.setType || null,
                   rir: set.rir !== undefined ? set.rir : null,
                   rpe: set.rpe !== undefined ? set.rpe : null,
+                  // Technique fields
+                  drop_set_weights: set.dropSetWeights || null,
+                  drop_set_reps: set.dropSetReps || null,
+                  rest_pause_duration: set.restPauseDuration || null,
+                  cluster_reps: set.clusterReps || null,
+                  cluster_rest_duration: set.clusterRestDuration || null,
                   created_at: set.createdAt.toISOString(),
                   updated_at: set.updatedAt.toISOString(),
                   synced_at: syncedAt.toISOString(),
@@ -637,6 +670,12 @@ export class SyncService {
             notes: remote.notes,
             completedAt: remote.completed_at ? new Date(remote.completed_at) : undefined,
             deletedAt: remote.deleted_at ? new Date(remote.deleted_at) : undefined, // ✅ Pull deleted_at
+            // Technique fields
+            dropSetWeights: remote.drop_set_weights || undefined,
+            dropSetReps: remote.drop_set_reps || undefined,
+            restPauseDuration: remote.rest_pause_duration || undefined,
+            clusterReps: remote.cluster_reps || undefined,
+            clusterRestDuration: remote.cluster_rest_duration || undefined,
             syncedAt: new Date(),
             needsSync: false,
           });
@@ -657,6 +696,12 @@ export class SyncService {
             notes: remote.notes,
             completedAt: remote.completed_at ? new Date(remote.completed_at) : undefined,
             deletedAt: remote.deleted_at ? new Date(remote.deleted_at) : undefined, // ✅ Pull deleted_at
+            // Technique fields
+            dropSetWeights: remote.drop_set_weights || undefined,
+            dropSetReps: remote.drop_set_reps || undefined,
+            restPauseDuration: remote.rest_pause_duration || undefined,
+            clusterReps: remote.cluster_reps || undefined,
+            clusterRestDuration: remote.cluster_rest_duration || undefined,
             updatedAt: remoteUpdated,
             syncedAt: new Date(),
             needsSync: false,

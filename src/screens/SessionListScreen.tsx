@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, Button } from '../components';
+import { Card, Button, SyncStatusIndicator } from '../components';
 import { SPACING, TYPOGRAPHY, getThemeColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { storageService } from '../services/storage';
+import { toast } from '../services/toast';
 import type { Periodization, Session } from '../models';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -13,6 +14,7 @@ interface SessionListScreenProps {
   periodization: Periodization;
   onCreateSession: () => void;
   onSelectSession: (session: Session) => void;
+  onEditSession: (session: Session) => void;
   onBack: () => void;
 }
 
@@ -20,6 +22,7 @@ export function SessionListScreen({
   periodization,
   onCreateSession,
   onSelectSession,
+  onEditSession,
   onBack,
 }: SessionListScreenProps) {
   const { isDark } = useTheme();
@@ -49,6 +52,33 @@ export function SessionListScreen({
     loadSessions();
   };
 
+  const handleDeleteSession = async (sessionId: string, sessionName: string) => {
+    Alert.alert(
+      'Excluir Sessão',
+      `Tem certeza que deseja excluir "${sessionName}"? Esta ação não pode ser desfeita.`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await storageService.deleteSession(sessionId);
+              await loadSessions();
+              toast.success('Sessão excluída!');
+            } catch (error) {
+              console.error('Error deleting session:', error);
+              toast.error('Erro ao excluir sessão');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const getStatusBadge = (session: Session) => {
     if (session.completedAt) {
       return { text: 'Concluído', icon: 'checkmark-circle' as const, color: colors.success };
@@ -72,9 +102,26 @@ export function SessionListScreen({
         <Card style={styles.sessionCard}>
           <View style={styles.cardHeader}>
             <Text style={[styles.sessionName, { color: colors.text.primary }]}>{item.name}</Text>
-            {item.needsSync && <Ionicons name="sync-outline" size={20} color={colors.info} />}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.xs }}>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onEditSession(item);
+                }}
+              >
+                <Ionicons name="create-outline" size={22} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleDeleteSession(item.id, item.name);
+                }}
+              >
+                <Ionicons name="trash-outline" size={22} color={colors.error} />
+              </TouchableOpacity>
+              <SyncStatusIndicator needsSync={item.needsSync} variant="icon-only" size="small" />
+            </View>
           </View>
-
           <View style={styles.statusRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons name={status.icon} size={16} color={status.color} style={{ marginRight: SPACING.xs }} />

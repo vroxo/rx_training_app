@@ -5,9 +5,12 @@ export interface Exercise {
   sessionId: string;
   name: string;
   muscleGroup?: string;
-  equipment?: string;
+  equipmentType?: string;
   notes?: string;
   orderIndex: number;
+  // Campos para exercícios conjugados (Biset/Triset)
+  conjugatedGroup?: string;  // UUID do grupo conjugado
+  conjugatedOrder?: number;  // Ordem no grupo (1, 2, 3...)
   completedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -22,4 +25,16 @@ export type CreateExerciseInput = Omit<
 >;
 
 export type UpdateExerciseInput = Partial<Omit<CreateExerciseInput, 'userId'>>;
+
+/**
+ * Retorna o tipo de conjugado baseado no número de exercícios
+ */
+export function getConjugatedType(count: number): string | null {
+  switch (count) {
+    case 2: return 'BISET';
+    case 3: return 'TRISET';
+    case 4: return 'QUADRISET';
+    default: return count > 4 ? `${count} EXERCÍCIOS` : null;
+  }
+}
 

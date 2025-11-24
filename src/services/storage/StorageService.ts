@@ -43,6 +43,14 @@ export class StorageService {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
+  // Get ALL periodizations including deleted (for sync)
+  public async getAllPeriodizationsIncludingDeleted(userId: string): Promise<Periodization[]> {
+    const data = await this.getAll<Periodization>(KEYS.PERIODIZATIONS);
+    return data
+      .filter(p => p.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
   // Alias for consistency
   public async getPeriodizationsByUser(userId: string): Promise<Periodization[]> {
     return this.getAllPeriodizations(userId);
@@ -84,10 +92,26 @@ export class StorageService {
   }
 
   public async deletePeriodization(id: string): Promise<void> {
+    const deletedAt = new Date();
+    console.log('🗑️ [STORAGE] Marking periodization as deleted:', {
+      id,
+      deletedAt,
+      deletedAtISO: deletedAt.toISOString(),
+    });
+    
     await this.update<Periodization>(KEYS.PERIODIZATIONS, id, {
-      deletedAt: new Date(),
+      deletedAt,
       needsSync: true,
     } as any);
+    
+    // Verify the update
+    const updated = await this.getPeriodizationByIdIncludingDeleted(id);
+    console.log('✅ [STORAGE] Verification after delete:', {
+      id: updated?.id,
+      name: updated?.name,
+      deletedAt: updated?.deletedAt,
+      needsSync: updated?.needsSync,
+    });
   }
 
   // ==============================================
@@ -98,6 +122,14 @@ export class StorageService {
     const data = await this.getAll<Session>(KEYS.SESSIONS);
     return data
       .filter(s => s.periodizationId === periodizationId && !s.deletedAt)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  // Get ALL sessions including deleted (for sync)
+  public async getSessionsByPeriodizationIncludingDeleted(periodizationId: string): Promise<Session[]> {
+    const data = await this.getAll<Session>(KEYS.SESSIONS);
+    return data
+      .filter(s => s.periodizationId === periodizationId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
@@ -149,8 +181,29 @@ export class StorageService {
 
   public async getExercisesBySession(sessionId: string): Promise<Exercise[]> {
     const data = await this.getAll<Exercise>(KEYS.EXERCISES);
-    return data
+    const filtered = data
       .filter(e => e.sessionId === sessionId && !e.deletedAt)
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+    
+    // Check for duplicate IDs
+    const ids = filtered.map(e => e.id);
+    const uniqueIds = new Set(ids);
+    if (ids.length !== uniqueIds.size) {
+      console.error('⚠️ [STORAGE] Found duplicate exercise IDs for session:', sessionId);
+      console.error('IDs:', ids);
+      console.error('Duplicate exercises:', filtered.filter((e, i, arr) => 
+        arr.findIndex(ex => ex.id === e.id) !== i
+      ));
+    }
+    
+    return filtered;
+  }
+
+  // Get ALL exercises including deleted (for sync)
+  public async getExercisesBySessionIncludingDeleted(sessionId: string): Promise<Exercise[]> {
+    const data = await this.getAll<Exercise>(KEYS.EXERCISES);
+    return data
+      .filter(e => e.sessionId === sessionId)
       .sort((a, b) => a.orderIndex - b.orderIndex);
   }
 
@@ -204,6 +257,14 @@ export class StorageService {
     const data = await this.getAll<Set>(KEYS.SETS);
     return data
       .filter(s => s.exerciseId === exerciseId && !s.deletedAt)
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+  }
+
+  // Get ALL sets including deleted (for sync)
+  public async getSetsByExerciseIncludingDeleted(exerciseId: string): Promise<Set[]> {
+    const data = await this.getAll<Set>(KEYS.SETS);
+    return data
+      .filter(s => s.exerciseId === exerciseId)
       .sort((a, b) => a.orderIndex - b.orderIndex);
   }
 
@@ -270,7 +331,16 @@ export class StorageService {
   private async add<T extends { id: string }>(key: string, item: T): Promise<void> {
     try {
       const all = await this.getAll<T>(key);
-      all.push(item);
+      
+      // Check if item with this ID already exists
+      const existingIndex = all.findIndex(existing => existing.id === item.id);
+      if (existingIndex !== -1) {
+        console.warn(`⚠️ [STORAGE] Item with id ${item.id} already exists in ${key}. Replacing it.`);
+        all[existingIndex] = item;
+      } else {
+        all.push(item);
+      }
+      
       await AsyncStorage.setItem(key, JSON.stringify(all));
     } catch (error) {
       console.error(`Error adding to ${key}:`, error);
@@ -320,6 +390,160 @@ export class StorageService {
       AsyncStorage.removeItem(KEYS.EXERCISES),
       AsyncStorage.removeItem(KEYS.SETS),
     ]);
+  }
+
+  // ==============================================
+  // DUPLICATION METHODS
+  // ==============================================
+
+  /**
+   * Duplicates a set with a new ID
+   */
+  public async duplicateSet(setId: string): Promise<Set> {
+    const originalSet = await this.getSetById(setId);
+    if (!originalSet) {
+      throw new Error(`Set with id ${setId} not found`);
+    }
+
+    // Get all sets from the exercise to determine order
+    const allSets = await this.getSetsByExercise(originalSet.exerciseId);
+    const maxOrderIndex = Math.max(...allSets.map(s => s.orderIndex), -1);
+
+    // Create duplicate with incremented order_index
+    // Explicitly omit fields that should not be copied
+    const { id: _omitId, createdAt: _omitCreatedAt, updatedAt: _omitUpdatedAt, syncedAt: _omitSyncedAt, deletedAt: _omitDeletedAt4, ...setData } = originalSet;
+    
+    // Ensure no 'id' field is accidentally passed
+    const duplicateSet: any = {
+      ...setData,
+      orderIndex: maxOrderIndex + 1,
+      needsSync: true,
+    };
+    delete duplicateSet.id; // Force remove id if it exists
+
+    return await this.createSet(duplicateSet);
+  }
+
+  /**
+   * Duplicates an exercise with all its sets
+   */
+  public async duplicateExercise(exerciseId: string): Promise<Exercise> {
+    const originalExercise = await this.getExerciseById(exerciseId);
+    if (!originalExercise) {
+      throw new Error(`Exercise with id ${exerciseId} not found`);
+    }
+
+    // Get all sets from the original exercise
+    const originalSets = await this.getSetsByExercise(exerciseId);
+
+    // Get all exercises from the session to determine order
+    const allExercises = await this.getExercisesBySession(originalExercise.sessionId);
+    const maxOrderIndex = Math.max(...allExercises.map(e => e.orderIndex), -1);
+
+    // Create duplicate exercise with incremented order_index
+    // Explicitly omit fields that should not be copied
+    const { id: _omitExId, createdAt: _omitExCreatedAt, updatedAt: _omitExUpdatedAt, syncedAt: _omitExSyncedAt, deletedAt: _omitDeletedAt2, ...exerciseData } = originalExercise;
+    
+    // Ensure no 'id' field is accidentally passed
+    const duplicateExercise: any = {
+      ...exerciseData,
+      name: `${originalExercise.name} (cópia)`,
+      orderIndex: maxOrderIndex + 1,
+      completedAt: undefined, // Reset completion status
+      needsSync: true,
+    };
+    delete duplicateExercise.id; // Force remove id if it exists
+
+    const newExercise = await this.createExercise(duplicateExercise);
+
+    // Duplicate all sets
+    for (const originalSet of originalSets) {
+      // Explicitly omit fields that should not be copied
+      const { id: _omitSetId, createdAt: _omitSetCreatedAt, updatedAt: _omitSetUpdatedAt, syncedAt: _omitSetSyncedAt, deletedAt: _omitDeletedAt3, ...setData } = originalSet;
+      
+      // Ensure no 'id' field is accidentally passed
+      const duplicateSet: any = {
+        ...setData,
+        exerciseId: newExercise.id,
+        needsSync: true,
+      };
+      delete duplicateSet.id; // Force remove id if it exists
+      
+      await this.createSet(duplicateSet);
+    }
+
+    return newExercise;
+  }
+
+  /**
+   * Duplicates a session with all its exercises and sets
+   */
+  public async duplicateSession(sessionId: string): Promise<Session> {
+    console.log('🔄 [DUPLICATE] Starting session duplication:', sessionId);
+    const originalSession = await this.getSessionById(sessionId);
+    if (!originalSession) {
+      throw new Error(`Session with id ${sessionId} not found`);
+    }
+
+    // Get all exercises from the original session
+    const originalExercises = await this.getExercisesBySession(sessionId);
+    console.log('📋 [DUPLICATE] Found exercises:', originalExercises.length);
+
+    // Create duplicate session (without "(cópia)" in the name)
+    // Explicitly omit fields that should not be copied
+    const { id: _omitId, createdAt: _omitCreatedAt, updatedAt: _omitUpdatedAt, syncedAt: _omitSyncedAt, ...sessionData } = originalSession;
+    
+    const duplicateSession = {
+      ...sessionData,
+      name: originalSession.name, // Keep original name
+      status: 'planned' as const, // Reset status to planned
+      completedAt: undefined, // Reset completion
+      needsSync: true,
+    };
+
+    const newSession = await this.createSession(duplicateSession);
+    console.log('✅ [DUPLICATE] New session created:', newSession.id);
+
+    // Duplicate all exercises and their sets
+    for (const originalExercise of originalExercises) {
+      // Explicitly omit fields that should not be copied
+      const { id: _omitExId, createdAt: _omitExCreatedAt, updatedAt: _omitExUpdatedAt, syncedAt: _omitExSyncedAt, deletedAt: _omitDeletedAt, ...exerciseData } = originalExercise;
+      
+      // Ensure no 'id' field is accidentally passed
+      const duplicateExercise: any = {
+        ...exerciseData,
+        sessionId: newSession.id,
+        completedAt: undefined, // Reset completion
+        needsSync: true,
+      };
+      delete duplicateExercise.id; // Force remove id if it exists
+      
+      const newExercise = await this.createExercise(duplicateExercise);
+      console.log('  ✅ [DUPLICATE] Exercise duplicated:', newExercise.id, '-', newExercise.name, '(original:', originalExercise.id, ')');
+
+      // Get and duplicate all sets for this exercise
+      const originalSets = await this.getSetsByExercise(originalExercise.id);
+      console.log('    📊 [DUPLICATE] Duplicating', originalSets.length, 'sets for exercise');
+      
+      for (const originalSet of originalSets) {
+        // Explicitly omit fields that should not be copied
+        const { id: _omitSetId, createdAt: _omitSetCreatedAt, updatedAt: _omitSetUpdatedAt, syncedAt: _omitSetSyncedAt, deletedAt: _omitDeletedAt, ...setData } = originalSet;
+        
+        // Ensure no 'id' field is accidentally passed
+        const duplicateSet: any = {
+          ...setData,
+          exerciseId: newExercise.id,
+          needsSync: true,
+        };
+        delete duplicateSet.id; // Force remove id if it exists
+        
+        const newSet = await this.createSet(duplicateSet);
+        console.log('      ✅ [DUPLICATE] Set duplicated:', newSet.id, '-', newSet.weight, 'kg x', newSet.repetitions, '(original:', originalSet.id, ')');
+      }
+    }
+
+    console.log('🎉 [DUPLICATE] Session duplication completed! New session ID:', newSession.id);
+    return newSession;
   }
 }
 

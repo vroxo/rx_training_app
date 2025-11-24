@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,11 +10,13 @@ import { statsService, DashboardStats } from '../services/stats';
 import type { Session } from '../models';
 import { startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isToday, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useSyncStore } from '../stores/syncStore';
 
 export function HomeScreen() {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const colors = getThemeColors(isDark);
+  const { lastSyncedAt } = useSyncStore();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -31,6 +33,16 @@ export function HomeScreen() {
       }
     }, [user])
   );
+
+  // Reload data when sync completes
+  useEffect(() => {
+    if (user && lastSyncedAt) {
+      console.log('🔄 [HOME] Recarregando dados após sync em:', lastSyncedAt);
+      loadStats();
+      loadRecentSessions();
+      loadWeekSessions();
+    }
+  }, [lastSyncedAt, user]);
 
   const loadStats = async () => {
     if (!user) return;
@@ -241,7 +253,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
   weekCard: {
-    padding: SPACING.md,
+    padding: SPACING.sm,
     marginBottom: SPACING.xl,
     borderRadius: 12,
     borderWidth: 1,

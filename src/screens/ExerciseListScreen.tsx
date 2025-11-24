@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, Button } from '../components';
+import { Card, Button, SyncStatusIndicator } from '../components';
 import { SPACING, TYPOGRAPHY, getThemeColors } from '../constants/theme';
+import { getMuscleGroupLabel } from '../constants';
 import { useTheme } from '../contexts/ThemeContext';
 import { storageService } from '../services/storage';
 import type { Session, Exercise } from '../models';
@@ -60,7 +61,7 @@ export function ExerciseListScreen({
               {item.muscleGroup && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
                   <Ionicons name="body" size={14} color={colors.text.secondary} style={{ marginRight: 4 }} />
-                  <Text style={[styles.muscleGroup, { color: colors.text.secondary }]}>{item.muscleGroup}</Text>
+                  <Text style={[styles.muscleGroup, { color: colors.text.secondary }]}>{getMuscleGroupLabel(item.muscleGroup)}</Text>
                 </View>
               )}
               {item.equipmentType && (
@@ -70,7 +71,7 @@ export function ExerciseListScreen({
                 </View>
               )}
             </View>
-            {item.needsSync && <Ionicons name="sync-outline" size={20} color={colors.info} />}
+            <SyncStatusIndicator needsSync={item.needsSync} variant="icon-only" size="small" />
           </View>
 
           {item.notes && (

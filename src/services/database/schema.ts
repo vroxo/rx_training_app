@@ -67,6 +67,11 @@ export const CREATE_TABLES_SQL = `
     rir INTEGER,
     rpe INTEGER,
     notes TEXT,
+    drop_set_weights TEXT,
+    drop_set_reps TEXT,
+    rest_pause_duration INTEGER,
+    cluster_reps INTEGER,
+    cluster_rest_duration INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     deleted_at TEXT,
@@ -118,5 +123,31 @@ export const DROP_TABLES_SQL = `
   DROP TABLE IF EXISTS exercises;
   DROP TABLE IF EXISTS sessions;
   DROP TABLE IF EXISTS periodizations;
+`;
+
+export const MIGRATIONS_SQL = `
+  -- Migration: Add technique fields to sets table (v1.1.0)
+  -- SQLite doesn't support adding multiple columns at once, so we use multiple ALTER TABLE statements
+  
+  -- Add drop_set_weights column (stored as JSON string)
+  ALTER TABLE sets ADD COLUMN drop_set_weights TEXT;
+  
+  -- Add drop_set_reps column (stored as JSON string)
+  ALTER TABLE sets ADD COLUMN drop_set_reps TEXT;
+  
+  -- Add rest_pause_duration column
+  ALTER TABLE sets ADD COLUMN rest_pause_duration INTEGER;
+  
+  -- Add cluster_reps column
+  ALTER TABLE sets ADD COLUMN cluster_reps INTEGER;
+  
+  -- Add cluster_rest_duration column
+  ALTER TABLE sets ADD COLUMN cluster_rest_duration INTEGER;
+  
+  -- Add conjugated_group column for exercises
+  ALTER TABLE exercises ADD COLUMN conjugated_group TEXT;
+  
+  -- Add conjugated_order column for exercises
+  ALTER TABLE exercises ADD COLUMN conjugated_order INTEGER;
 `;
 

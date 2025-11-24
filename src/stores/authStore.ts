@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { User } from '../models';
 import { authService } from '../services/auth';
-import { syncService } from '../services/sync';
+import { useSyncStore } from './syncStore';
 
 interface AuthState {
   user: User | null;
@@ -31,11 +31,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await authService.signIn(email, password);
       set({ user, isAuthenticated: true, isLoading: false });
       
-      // Sync automático após login
+      // Sync automático imediato após login
       console.log('🔄 [LOGIN] Iniciando sincronização automática...');
-      syncService.syncAll(user.id).catch(err => {
-        console.error('❌ [LOGIN] Erro ao sincronizar após login:', err);
-      });
+      const syncStore = useSyncStore.getState();
+      await syncStore.sync(user.id);
+      console.log('✅ [LOGIN] Sincronização concluída!');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Sign in failed';
       set({ error: message, isLoading: false });
@@ -48,6 +48,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const user = await authService.signUp(email, password);
       set({ user, isAuthenticated: true, isLoading: false });
+      
+      // Sync automático imediato após cadastro
+      console.log('🔄 [SIGNUP] Iniciando sincronização automática...');
+      const syncStore = useSyncStore.getState();
+      await syncStore.sync(user.id);
+      console.log('✅ [SIGNUP] Sincronização concluída!');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Sign up failed';
       set({ error: message, isLoading: false });
@@ -89,12 +95,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: user !== null
       });
       
-      // Sync automático após restaurar sessão
+      // Sync automático imediato após restaurar sessão
       if (user) {
         console.log('🔄 [RESTORE] Iniciando sincronização automática...');
-        syncService.syncAll(user.id).catch(err => {
-          console.error('❌ [RESTORE] Erro ao sincronizar após restaurar sessão:', err);
-        });
+        const syncStore = useSyncStore.getState();
+        await syncStore.sync(user.id);
+        console.log('✅ [RESTORE] Sincronização concluída!');
       }
     } catch (error) {
       console.error('Error restoring session:', error);

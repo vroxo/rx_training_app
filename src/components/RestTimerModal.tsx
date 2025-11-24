@@ -133,11 +133,12 @@ export function RestTimerModal({ visible, initialSeconds, onClose }: RestTimerMo
       onRequestClose={handleClose}
     >
       <View style={[styles.overlay, { backgroundColor: 'rgba(0, 0, 0, 0.9)' }]}>
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background.primary }]}>
           {/* Close Button */}
           <TouchableOpacity
             onPress={handleClose}
-            style={styles.closeButton}
+            style={[styles.closeButton, { backgroundColor: colors.background.secondary }]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="close" size={28} color={colors.text.primary} />
           </TouchableOpacity>
@@ -249,11 +250,18 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     alignItems: 'center',
     paddingVertical: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: 20,
   },
   closeButton: {
     alignSelf: 'flex-end',
-    padding: SPACING.sm,
+    padding: SPACING.md,
     marginBottom: SPACING.md,
+    borderRadius: 25,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: TYPOGRAPHY.size['2xl'],

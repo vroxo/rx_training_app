@@ -301,11 +301,11 @@ export class StatsService {
    */
   public async getPeriodizationExerciseProgression(
     periodizationId: string
-  ): Promise<Map<string, { dates: Date[]; maxWeights: number[]; sessionNames: string[] }>> {
+  ): Promise<Map<string, { dates: Date[]; maxWeights: number[]; sessionNames: string[]; muscleGroup?: string }>> {
     try {
       const progressionByExercise = new Map<
         string,
-        { date: Date; maxWeight: number; sessionName: string }[]
+        { date: Date; maxWeight: number; sessionName: string; muscleGroup?: string }[]
       >();
 
       // Get all sessions for this periodization
@@ -331,17 +331,18 @@ export class StatsService {
             progressionByExercise.set(exercise.name, []);
           }
 
-          // Add data point
+          // Add data point with muscle group
           progressionByExercise.get(exercise.name)!.push({
             date: session.completedAt!,
             maxWeight,
             sessionName: session.name,
+            muscleGroup: exercise.muscleGroup,
           });
         }
       }
 
       // Convert to final format
-      const result = new Map<string, { dates: Date[]; maxWeights: number[]; sessionNames: string[] }>();
+      const result = new Map<string, { dates: Date[]; maxWeights: number[]; sessionNames: string[]; muscleGroup?: string }>();
       
       for (const [exerciseName, dataPoints] of progressionByExercise.entries()) {
         // Sort by date
@@ -351,6 +352,7 @@ export class StatsService {
           dates: dataPoints.map(d => d.date),
           maxWeights: dataPoints.map(d => d.maxWeight),
           sessionNames: dataPoints.map(d => d.sessionName),
+          muscleGroup: dataPoints[0]?.muscleGroup, // Use muscleGroup do primeiro exercício
         });
       }
 

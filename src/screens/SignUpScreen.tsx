@@ -73,7 +73,7 @@ export function SignUpScreen({ onSwitchToLogin }: SignUpScreenProps) {
 
         <View style={styles.form}>
           <View style={styles.inputContainer}>
-            <Ionicons name="mail-outline" size={20} color={colors.text.tertiary} style={styles.inputIcon} />
+            <Ionicons name="mail-outline" size={20} color={colors.text.tertiary} style={styles.inputIcon} pointerEvents="none" />
             <TextInput
               style={[styles.input, { color: colors.text.primary, borderColor: colors.border, backgroundColor: colors.background.secondary }]}
               placeholder="Email"
@@ -81,12 +81,14 @@ export function SignUpScreen({ onSwitchToLogin }: SignUpScreenProps) {
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
+              autoCorrect={false}
               keyboardType="email-address"
+              editable={!isLoading}
             />
           </View>
 
           <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={20} color={colors.text.tertiary} style={styles.inputIcon} />
+            <Ionicons name="lock-closed-outline" size={20} color={colors.text.tertiary} style={styles.inputIcon} pointerEvents="none" />
             <TextInput
               style={[styles.input, { color: colors.text.primary, borderColor: colors.border, backgroundColor: colors.background.secondary }]}
               placeholder="Senha"
@@ -94,10 +96,14 @@ export function SignUpScreen({ onSwitchToLogin }: SignUpScreenProps) {
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isLoading}
             />
             <TouchableOpacity
               style={styles.eyeIcon}
               onPress={() => setShowPassword(!showPassword)}
+              disabled={isLoading}
             >
               <Ionicons
                 name={showPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -108,7 +114,7 @@ export function SignUpScreen({ onSwitchToLogin }: SignUpScreenProps) {
           </View>
 
           <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={20} color={colors.text.tertiary} style={styles.inputIcon} />
+            <Ionicons name="lock-closed-outline" size={20} color={colors.text.tertiary} style={styles.inputIcon} pointerEvents="none" />
             <TextInput
               style={[styles.input, { color: colors.text.primary, borderColor: colors.border, backgroundColor: colors.background.secondary }]}
               placeholder="Confirmar Senha"
@@ -116,10 +122,14 @@ export function SignUpScreen({ onSwitchToLogin }: SignUpScreenProps) {
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry={!showConfirmPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isLoading}
             />
             <TouchableOpacity
               style={styles.eyeIcon}
               onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              disabled={isLoading}
             >
               <Ionicons
                 name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}

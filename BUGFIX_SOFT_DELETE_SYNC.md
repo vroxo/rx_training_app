@@ -13,9 +13,22 @@ O campo `deleted_at` das entidades (Periodizations, Sessions, Exercises, Sets) n
 
 ## 🔍 Causa Raiz
 
+### ⚠️ **CAUSA PRINCIPAL: Items deletados eram FILTRADOS antes do sync!**
+
+O verdadeiro problema estava nos métodos que **buscam items para sincronizar**:
+
+```typescript
+// ❌ ERRADO: Filtra items deletados!
+const localPeriodizations = await storageService.getAllPeriodizations(userId);
+// Este método retorna: .filter(p => !p.deletedAt)
+```
+
+**Resultado:** Items deletados **nunca entravam na lista de sync**, então o `deleted_at` nunca era enviado ao Supabase!
+
 ### 1. Push (Local → Supabase)
 
-No `SyncService.ts`, quando um item tinha `deletedAt`, fazíamos um **hard delete**:
+**Problema 1:** Items deletados não entravam na lista de sync
+**Problema 2:** Quando entravam, fazíamos **hard delete**:
 
 ```typescript
 if (periodization.deletedAt) {
@@ -25,8 +38,6 @@ if (periodization.deletedAt) {
     .eq('id', periodization.id);
 }
 ```
-
-Isso **removia completamente** o registro do Supabase em vez de marcar como deletado.
 
 ### 2. Pull (Supabase → Local)
 
@@ -43,7 +54,37 @@ await storageService.createPeriodization({
 
 ## ✅ Solução
 
-### 1. Push: Soft Delete em vez de Hard Delete
+### 0. Criar métodos *IncludingDeleted no StorageService
+
+**A correção mais importante:** Criar métodos que retornam items **incluindo deletados** para o sync:
+
+```typescript
+// ✅ CORRETO: Retorna TODOS os items, incluindo deletados
+public async getAllPeriodizationsIncludingDeleted(userId: string): Promise<Periodization[]> {
+  const data = await this.getAll<Periodization>(KEYS.PERIODIZATIONS);
+  return data
+    .filter(p => p.userId === userId) // ✅ Sem filtro de deletedAt!
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+```
+
+Criados para:
+- ✅ `getAllPeriodizationsIncludingDeleted()`
+- ✅ `getSessionsByPeriodizationIncludingDeleted()`
+- ✅ `getExercisesBySessionIncludingDeleted()`
+- ✅ `getSetsByExerciseIncludingDeleted()`
+
+### 1. Push: Usar métodos *IncludingDeleted + Soft Delete
+
+**Mudança no SyncService:**
+
+```typescript
+// ❌ ANTES: Filtrava deletados
+const localPeriodizations = await storageService.getAllPeriodizations(userId);
+
+// ✅ DEPOIS: Inclui deletados para sync
+const localPeriodizations = await storageService.getAllPeriodizationsIncludingDeleted(userId);
+```
 
 Agora sempre usamos `upsert` para **todas** as entidades, incluindo deletadas:
 
@@ -116,9 +157,25 @@ await storageService.createPeriodization({
 
 ## 📝 Arquivos Modificados
 
-- `src/services/sync/SyncService.ts`
-  - Push methods: sempre usa `upsert` com `deleted_at`
-  - Pull methods: pega `deleted_at` do remote
+### `src/services/storage/StorageService.ts`
+
+**Novos métodos criados:**
+- `getAllPeriodizationsIncludingDeleted(userId)`
+- `getSessionsByPeriodizationIncludingDeleted(periodizationId)`
+- `getExercisesBySessionIncludingDeleted(sessionId)`
+- `getSetsByExerciseIncludingDeleted(exerciseId)`
+
+**Propósito:** Permitir que o sync acesse items deletados para sincronizá-los.
+
+### `src/services/sync/SyncService.ts`
+
+**Push methods:**
+- Usa métodos `*IncludingDeleted` para buscar items
+- Sempre usa `upsert` com `deleted_at`
+
+**Pull methods:**
+- Pega `deleted_at` do remote
+- Cria/atualiza items locais com `deletedAt`
 
 ## 🎯 Resultado
 

@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { CREATE_TABLES_SQL } from './schema';
+import { CREATE_TABLES_SQL, MIGRATIONS_SQL } from './schema';
 import type { Periodization, Session, Exercise, Set, SyncQueue } from '../../models';
 
 export class DatabaseService {
@@ -21,6 +21,7 @@ export class DatabaseService {
     try {
       this.db = await SQLite.openDatabaseAsync('rx_training.db');
       await this.createTables();
+      await this.runMigrations();
       console.log('✅ Database initialized successfully');
     } catch (error) {
       console.error('❌ Error initializing database:', error);
@@ -32,6 +33,24 @@ export class DatabaseService {
   private async createTables(): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     await this.db.execAsync(CREATE_TABLES_SQL);
+  }
+
+  // Run migrations (add columns to existing databases)
+  private async runMigrations(): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    try {
+      // Try to run migrations - will fail silently if columns already exist
+      await this.db.execAsync(MIGRATIONS_SQL);
+      console.log('✅ Migrations executed successfully');
+    } catch (error: any) {
+      // Ignore "duplicate column" errors (means migrations already ran)
+      if (error?.message?.includes('duplicate column')) {
+        console.log('✅ Migrations already applied');
+      } else {
+        console.error('⚠️ Migration warning:', error);
+        // Don't throw - allow app to continue even if migrations fail
+      }
+    }
   }
 
   // Get database instance
@@ -343,8 +362,8 @@ export class DatabaseService {
     const now = new Date().toISOString();
 
     await db.runAsync(
-      `INSERT INTO sets (id, user_id, exercise_id, order_index, repetitions, weight, technique, set_type, rest_time, rir, rpe, notes, created_at, updated_at, needs_sync)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      `INSERT INTO sets (id, user_id, exercise_id, order_index, repetitions, weight, technique, set_type, rest_time, rir, rpe, notes, drop_set_weights, drop_set_reps, rest_pause_duration, cluster_reps, cluster_rest_duration, created_at, updated_at, needs_sync)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
         data.id,
         data.userId,
@@ -358,6 +377,11 @@ export class DatabaseService {
         data.rir || null,
         data.rpe || null,
         data.notes || null,
+        data.dropSetWeights ? JSON.stringify(data.dropSetWeights) : null,
+        data.dropSetReps ? JSON.stringify(data.dropSetReps) : null,
+        data.restPauseDuration || null,
+        data.clusterReps || null,
+        data.clusterRestDuration || null,
         now,
         now,
       ]
@@ -409,6 +433,26 @@ export class DatabaseService {
       fields.push('notes = ?');
       values.push(data.notes);
     }
+    if (data.dropSetWeights !== undefined) {
+      fields.push('drop_set_weights = ?');
+      values.push(data.dropSetWeights ? JSON.stringify(data.dropSetWeights) : null);
+    }
+    if (data.dropSetReps !== undefined) {
+      fields.push('drop_set_reps = ?');
+      values.push(data.dropSetReps ? JSON.stringify(data.dropSetReps) : null);
+    }
+    if (data.restPauseDuration !== undefined) {
+      fields.push('rest_pause_duration = ?');
+      values.push(data.restPauseDuration);
+    }
+    if (data.clusterReps !== undefined) {
+      fields.push('cluster_reps = ?');
+      values.push(data.clusterReps);
+    }
+    if (data.clusterRestDuration !== undefined) {
+      fields.push('cluster_rest_duration = ?');
+      values.push(data.clusterRestDuration);
+    }
 
     fields.push('updated_at = ?');
     values.push(new Date().toISOString());
@@ -428,6 +472,199 @@ export class DatabaseService {
       'UPDATE sets SET deleted_at = ?, needs_sync = 1 WHERE id = ?',
       [new Date().toISOString(), id]
     );
+  }
+
+  // ==============================================
+  // DUPLICATION METHODS
+  // ==============================================
+
+  /**
+   * Duplicates a set with a new ID
+   * @param setId - ID of the set to duplicate
+   * @returns The newly created set
+   */
+  public async duplicateSet(setId: string): Promise<Set> {
+    const originalSet = await this.getSetById(setId);
+    if (!originalSet) {
+      throw new Error(`Set with id ${setId} not found`);
+    }
+
+    // Generate new ID and get the current max order_index
+    const newId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const sets = await this.getSetsByExercise(originalSet.exerciseId);
+    const maxOrderIndex = Math.max(...sets.map(s => s.orderIndex), -1);
+
+    // Create duplicate with incremented order_index
+    const duplicateData: Omit<Set, 'createdAt' | 'updatedAt'> = {
+      id: newId,
+      userId: originalSet.userId,
+      exerciseId: originalSet.exerciseId,
+      orderIndex: maxOrderIndex + 1,
+      repetitions: originalSet.repetitions,
+      weight: originalSet.weight,
+      technique: originalSet.technique,
+      setType: originalSet.setType,
+      restTime: originalSet.restTime,
+      rir: originalSet.rir,
+      rpe: originalSet.rpe,
+      notes: originalSet.notes,
+      dropSetWeights: originalSet.dropSetWeights,
+      dropSetReps: originalSet.dropSetReps,
+      restPauseDuration: originalSet.restPauseDuration,
+      clusterReps: originalSet.clusterReps,
+      clusterRestDuration: originalSet.clusterRestDuration,
+      needsSync: true,
+    };
+
+    return await this.createSet(duplicateData);
+  }
+
+  /**
+   * Duplicates an exercise with all its sets
+   * @param exerciseId - ID of the exercise to duplicate
+   * @returns The newly created exercise
+   */
+  public async duplicateExercise(exerciseId: string): Promise<Exercise> {
+    const originalExercise = await this.getExerciseById(exerciseId);
+    if (!originalExercise) {
+      throw new Error(`Exercise with id ${exerciseId} not found`);
+    }
+
+    // Get all sets from the original exercise
+    const originalSets = await this.getSetsByExercise(exerciseId);
+
+    // Generate new ID and get the current max order_index
+    const newExerciseId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const exercises = await this.getExercisesBySession(originalExercise.sessionId);
+    const maxOrderIndex = Math.max(...exercises.map(e => e.orderIndex), -1);
+
+    // Create duplicate exercise with incremented order_index
+    const duplicateExerciseData = {
+      id: newExerciseId,
+      userId: originalExercise.userId,
+      sessionId: originalExercise.sessionId,
+      name: `${originalExercise.name} (cópia)`,
+      muscleGroup: originalExercise.muscleGroup,
+      equipmentType: originalExercise.equipmentType,
+      notes: originalExercise.notes,
+      orderIndex: maxOrderIndex + 1,
+      conjugatedGroup: originalExercise.conjugatedGroup,
+      conjugatedOrder: originalExercise.conjugatedOrder,
+      completedAt: undefined, // Reset completion status
+      needsSync: true,
+    };
+
+    const newExercise = await this.createExercise(duplicateExerciseData);
+
+    // Duplicate all sets
+    for (const originalSet of originalSets) {
+      const newSetId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const duplicateSetData = {
+        id: newSetId,
+        userId: originalSet.userId,
+        exerciseId: newExerciseId,
+        orderIndex: originalSet.orderIndex,
+        repetitions: originalSet.repetitions,
+        weight: originalSet.weight,
+        technique: originalSet.technique,
+        setType: originalSet.setType,
+        restTime: originalSet.restTime,
+        rir: originalSet.rir,
+        rpe: originalSet.rpe,
+        notes: originalSet.notes,
+        dropSetWeights: originalSet.dropSetWeights,
+        dropSetReps: originalSet.dropSetReps,
+        restPauseDuration: originalSet.restPauseDuration,
+        clusterReps: originalSet.clusterReps,
+        clusterRestDuration: originalSet.clusterRestDuration,
+        needsSync: true,
+      };
+      await this.createSet(duplicateSetData);
+    }
+
+    return newExercise;
+  }
+
+  /**
+   * Duplicates a session with all its exercises and sets
+   * @param sessionId - ID of the session to duplicate
+   * @returns The newly created session
+   */
+  public async duplicateSession(sessionId: string): Promise<Session> {
+    const originalSession = await this.getSessionById(sessionId);
+    if (!originalSession) {
+      throw new Error(`Session with id ${sessionId} not found`);
+    }
+
+    // Get all exercises from the original session
+    const originalExercises = await this.getExercisesBySession(sessionId);
+
+    // Generate new session ID
+    const newSessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Create duplicate session (without "(cópia)" in the name)
+    const duplicateSessionData = {
+      id: newSessionId,
+      userId: originalSession.userId,
+      periodizationId: originalSession.periodizationId,
+      name: originalSession.name, // Keep original name
+      scheduledAt: originalSession.scheduledAt,
+      status: 'planned' as const, // Reset status to planned
+      completedAt: undefined, // Reset completion
+      notes: originalSession.notes,
+      needsSync: true,
+    };
+
+    const newSession = await this.createSession(duplicateSessionData);
+
+    // Duplicate all exercises and their sets
+    for (const originalExercise of originalExercises) {
+      const newExerciseId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const duplicateExerciseData = {
+        id: newExerciseId,
+        userId: originalExercise.userId,
+        sessionId: newSessionId,
+        name: originalExercise.name,
+        muscleGroup: originalExercise.muscleGroup,
+        equipmentType: originalExercise.equipmentType,
+        notes: originalExercise.notes,
+        orderIndex: originalExercise.orderIndex,
+        conjugatedGroup: originalExercise.conjugatedGroup,
+        conjugatedOrder: originalExercise.conjugatedOrder,
+        completedAt: undefined, // Reset completion
+        needsSync: true,
+      };
+      await this.createExercise(duplicateExerciseData);
+
+      // Get and duplicate all sets for this exercise
+      const originalSets = await this.getSetsByExercise(originalExercise.id);
+      for (const originalSet of originalSets) {
+        const newSetId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const duplicateSetData = {
+          id: newSetId,
+          userId: originalSet.userId,
+          exerciseId: newExerciseId,
+          orderIndex: originalSet.orderIndex,
+          repetitions: originalSet.repetitions,
+          weight: originalSet.weight,
+          technique: originalSet.technique,
+          setType: originalSet.setType,
+          restTime: originalSet.restTime,
+          rir: originalSet.rir,
+          rpe: originalSet.rpe,
+          notes: originalSet.notes,
+          dropSetWeights: originalSet.dropSetWeights,
+          dropSetReps: originalSet.dropSetReps,
+          restPauseDuration: originalSet.restPauseDuration,
+          clusterReps: originalSet.clusterReps,
+          clusterRestDuration: originalSet.clusterRestDuration,
+          needsSync: true,
+        };
+        await this.createSet(duplicateSetData);
+      }
+    }
+
+    return newSession;
   }
 
   // ==============================================
@@ -500,6 +737,11 @@ export class DatabaseService {
       rir: row.rir,
       rpe: row.rpe,
       notes: row.notes,
+      dropSetWeights: row.drop_set_weights ? JSON.parse(row.drop_set_weights) : undefined,
+      dropSetReps: row.drop_set_reps ? JSON.parse(row.drop_set_reps) : undefined,
+      restPauseDuration: row.rest_pause_duration,
+      clusterReps: row.cluster_reps,
+      clusterRestDuration: row.cluster_rest_duration,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
       deletedAt: row.deleted_at ? new Date(row.deleted_at) : undefined,

@@ -50,8 +50,17 @@ export function PeriodizationFormScreen({
       : {
           name: '',
           description: '',
-          startDate: new Date(),
-          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // +30 days
+          startDate: (() => {
+            // Cria data de hoje com horário zerado
+            const today = new Date();
+            return new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+          })(),
+          endDate: (() => {
+            // Cria data daqui a 30 dias com horário zerado
+            const today = new Date();
+            const in30Days = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30, 0, 0, 0, 0);
+            return in30Days;
+          })(),
         },
   });
 

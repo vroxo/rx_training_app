@@ -2,6 +2,7 @@
   "expo": {
     "name": "rx-training-app",
     "slug": "rx-training-app",
+    "scheme": "rxtrainingapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -31,6 +32,12 @@
     "plugins": [
       "expo-sqlite",
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3b99faf7-4197-46fc-ba28-5117489b2733"
+      }
+    },
+    "owner": "vroxo"
   }
 }

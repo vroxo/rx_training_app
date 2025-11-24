@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -11,7 +11,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { getThemeColors, SPACING, TYPOGRAPHY } from '../constants/theme';
+import { MUSCLE_GROUPS, getMuscleGroupLabel } from '../constants';
 import { VolumeChart } from './VolumeChart';
+import { Select } from './Select';
 import { statsService } from '../services/stats';
 import { toast } from '../services/toast';
 
@@ -32,8 +34,9 @@ export function PeriodizationChartsModal({
   const colors = getThemeColors(isDark);
   const [loading, setLoading] = useState(true);
   const [progressionData, setProgressionData] = useState<
-    Map<string, { dates: Date[]; maxWeights: number[]; sessionNames: string[] }>
+    Map<string, { dates: Date[]; maxWeights: number[]; sessionNames: string[]; muscleGroup?: string }>
   >(new Map());
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>('all');
 
   useEffect(() => {
     if (visible) {
@@ -53,6 +56,32 @@ export function PeriodizationChartsModal({
       setLoading(false);
     }
   };
+
+  // Filtrar exercícios por grupo muscular
+  const filteredProgressionData = useMemo(() => {
+    // Se "Todos os Grupos" está selecionado, retorna TODOS os exercícios,
+    // incluindo aqueles sem grupo muscular definido
+    if (selectedMuscleGroup === 'all') {
+      return progressionData;
+    }
+
+    // Filtra apenas os exercícios do grupo muscular selecionado
+    const filtered = new Map<string, { dates: Date[]; maxWeights: number[]; sessionNames: string[]; muscleGroup?: string }>();
+    
+    for (const [exerciseName, data] of progressionData.entries()) {
+      if (data.muscleGroup === selectedMuscleGroup) {
+        filtered.set(exerciseName, data);
+      }
+    }
+
+    return filtered;
+  }, [progressionData, selectedMuscleGroup]);
+
+  // Opções do select (Todos + grupos musculares)
+  const muscleGroupOptions = useMemo(() => [
+    { value: 'all', label: 'Todos os Grupos' },
+    ...MUSCLE_GROUPS,
+  ], []);
 
   return (
     <Modal
@@ -82,6 +111,17 @@ export function PeriodizationChartsModal({
           </Text>
         </View>
 
+        {/* Muscle Group Filter */}
+        <View style={styles.filterContainer}>
+          <Select
+            label="Filtrar por Grupo Muscular"
+            value={selectedMuscleGroup}
+            onChange={setSelectedMuscleGroup}
+            options={muscleGroupOptions}
+            placeholder="Todos os Grupos"
+          />
+        </View>
+
         {/* Content */}
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {loading ? (
@@ -91,19 +131,25 @@ export function PeriodizationChartsModal({
                 Carregando dados...
               </Text>
             </View>
-          ) : progressionData.size === 0 ? (
+          ) : filteredProgressionData.size === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="bar-chart-outline" size={64} color={colors.text.tertiary} />
               <Text style={[styles.emptyText, { color: colors.text.secondary }]}>
-                Nenhum dado de progressão disponível
+                {progressionData.size === 0 
+                  ? 'Nenhum dado de progressão disponível'
+                  : 'Nenhum exercício encontrado para este grupo muscular'
+                }
               </Text>
               <Text style={[styles.emptySubtext, { color: colors.text.tertiary }]}>
-                Complete sessões com exercícios para ver a progressão
+                {progressionData.size === 0 
+                  ? 'Complete sessões com exercícios para ver a progressão'
+                  : 'Tente selecionar outro grupo muscular'
+                }
               </Text>
             </View>
           ) : (
             <View style={styles.chartsContainer}>
-              {Array.from(progressionData.entries()).map(([exerciseName, data]) => (
+              {Array.from(filteredProgressionData.entries()).map(([exerciseName, data]) => (
                 <View
                   key={exerciseName}
                   style={[
@@ -116,9 +162,16 @@ export function PeriodizationChartsModal({
                 >
                   <View style={styles.chartHeader}>
                     <Ionicons name="barbell-outline" size={20} color={colors.primary} />
-                    <Text style={[styles.exerciseName, { color: colors.text.primary }]}>
-                      {exerciseName}
-                    </Text>
+                    <View style={styles.exerciseInfo}>
+                      <Text style={[styles.exerciseName, { color: colors.text.primary }]}>
+                        {exerciseName}
+                      </Text>
+                      {data.muscleGroup && (
+                        <Text style={[styles.muscleGroupBadge, { color: colors.text.tertiary }]}>
+                          {getMuscleGroupLabel(data.muscleGroup)}
+                        </Text>
+                      )}
+                    </View>
                   </View>
                   
                   <VolumeChart
@@ -204,6 +257,10 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.size.lg,
     fontWeight: TYPOGRAPHY.weight.semibold as any,
   },
+  filterContainer: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+  },
   content: {
     flex: 1,
   },
@@ -249,10 +306,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.md,
   },
+  exerciseInfo: {
+    flex: 1,
+    marginLeft: SPACING.sm,
+  },
   exerciseName: {
     fontSize: TYPOGRAPHY.size.lg,
     fontWeight: TYPOGRAPHY.weight.bold as any,
-    marginLeft: SPACING.sm,
+  },
+  muscleGroupBadge: {
+    fontSize: TYPOGRAPHY.size.sm,
+    marginTop: SPACING.xs / 2,
   },
   statsRow: {
     flexDirection: 'row',

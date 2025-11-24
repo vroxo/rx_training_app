@@ -1,3 +1,6 @@
+// Polyfill for crypto.getRandomValues() needed by uuid
+import 'react-native-get-random-values';
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';

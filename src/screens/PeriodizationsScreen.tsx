@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, Button, PeriodizationChartsModal } from '../components';
+import { Card, Button, PeriodizationChartsModal, SyncStatusIndicator } from '../components';
 import { SPACING, TYPOGRAPHY, getThemeColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { storageService } from '../services/storage';
+import { toast } from '../services/toast';
 import { useAuth } from '../hooks';
 import type { Periodization, Session, Exercise } from '../models';
 import { format } from 'date-fns';
@@ -18,6 +19,7 @@ import { SessionDetailScreen } from './SessionDetailScreen';
 import { ExerciseListScreen } from './ExerciseListScreen';
 import { ExerciseFormScreen } from './ExerciseFormScreen';
 import { ExerciseDetailScreen } from './ExerciseDetailScreen';
+import { useSyncStore } from '../stores/syncStore';
 
 type Screen = 'list' | 'form' | 'detail' | 'sessions' | 'sessionForm' | 'sessionDetail' | 'exercises' | 'exerciseForm' | 'exerciseDetail';
 type SelectedSession = Session | undefined;
@@ -27,6 +29,7 @@ export function PeriodizationsScreen() {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const colors = getThemeColors(isDark);
+  const { lastSyncedAt } = useSyncStore();
   const [screen, setScreen] = useState<Screen>('list');
   const [periodizations, setPeriodizations] = useState<Periodization[]>([]);
   const [selectedPeriodization, setSelectedPeriodization] = useState<Periodization | undefined>();
@@ -55,6 +58,14 @@ export function PeriodizationsScreen() {
     loadPeriodizations();
   }, [loadPeriodizations]);
 
+  // Reload data when sync completes
+  useEffect(() => {
+    if (user && lastSyncedAt) {
+      console.log('🔄 [PERIODIZATIONS] Recarregando dados após sync em:', lastSyncedAt);
+      loadPeriodizations();
+    }
+  }, [lastSyncedAt, user, loadPeriodizations]);
+
   const handleRefresh = () => {
     setIsRefreshing(true);
     loadPeriodizations();
@@ -75,6 +86,33 @@ export function PeriodizationsScreen() {
     setScreen('list');
     setSelectedPeriodization(undefined);
     loadPeriodizations();
+  };
+
+  const handleDeletePeriodization = async (periodizationId: string, periodizationName: string) => {
+    Alert.alert(
+      'Excluir Periodização',
+      `Tem certeza que deseja excluir "${periodizationName}"? Esta ação não pode ser desfeita.`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await storageService.deletePeriodization(periodizationId);
+              await loadPeriodizations();
+              toast.success('Periodização excluída!');
+            } catch (error) {
+              console.error('Error deleting periodization:', error);
+              toast.error('Erro ao excluir periodização');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleEdit = () => {
@@ -143,8 +181,17 @@ export function PeriodizationsScreen() {
     }
   };
 
-  const handleEditExercise = () => {
-    setScreen('exerciseForm');
+  const handleEditExercise = async (exerciseId: string) => {
+    try {
+      const exercise = await storageService.getExerciseById(exerciseId);
+      if (exercise) {
+        setSelectedExercise(exercise);
+        setScreen('exerciseForm');
+      }
+    } catch (error) {
+      console.error('Error loading exercise:', error);
+      toast.error('Não foi possível carregar o exercício');
+    }
   };
 
   const handleExerciseFormSuccess = () => {
@@ -173,18 +220,33 @@ export function PeriodizationsScreen() {
         <Card style={styles.periodizationCard}>
           <View style={styles.cardHeader}>
             <Text style={[styles.periodizationName, { color: colors.text.primary }]}>{item.name}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.xs }}>
               <TouchableOpacity
                 onPress={(e) => {
                   e.stopPropagation();
                   setSelectedPeriodizationForCharts(item);
                   setChartsModalVisible(true);
                 }}
-                style={{ marginRight: SPACING.sm }}
               >
                 <Ionicons name="stats-chart" size={22} color={colors.primary} />
               </TouchableOpacity>
-              {item.needsSync && <Ionicons name="sync-outline" size={20} color={colors.info} />}
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setSelectedPeriodization(item);
+                  setScreen('form');
+                }}
+              >
+                <Ionicons name="create-outline" size={22} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleDeletePeriodization(item.id, item.name);
+                }}
+              >
+                <Ionicons name="trash-outline" size={22} color={colors.error} />
+              </TouchableOpacity>
             </View>
           </View>
           {item.description && (
@@ -227,6 +289,10 @@ export function PeriodizationsScreen() {
         onViewSessions={handleViewSessions}
         onViewSessionDetail={handleSelectSessionById}
         onAddSession={handleCreateSession}
+        onEditSession={(session) => {
+          setSelectedSession(session);
+          setScreen('sessionForm');
+        }}
         onBack={() => {
           setScreen('list');
           setSelectedPeriodization(undefined);
@@ -241,6 +307,10 @@ export function PeriodizationsScreen() {
         periodization={selectedPeriodization}
         onCreateSession={handleCreateSession}
         onSelectSession={handleSelectSession}
+        onEditSession={(session) => {
+          setSelectedSession(session);
+          setScreen('sessionForm');
+        }}
         onBack={() => setScreen('detail')}
       />
     );
@@ -253,10 +323,8 @@ export function PeriodizationsScreen() {
         session={selectedSession}
         onSuccess={handleSessionFormSuccess}
         onCancel={() => {
-          setScreen(selectedSession ? 'sessionDetail' : 'detail');
-          if (!selectedSession) {
-            setSelectedSession(undefined);
-          }
+          setScreen('detail');
+          setSelectedSession(undefined);
         }}
       />
     );
@@ -269,6 +337,7 @@ export function PeriodizationsScreen() {
         onEdit={handleEditSession}
         onDelete={handleSessionDelete}
         onViewExerciseDetail={handleSelectExerciseById}
+        onEditExercise={handleEditExercise}
         onAddExercise={handleCreateExercise}
         onBack={() => {
           setScreen('detail');
@@ -296,10 +365,8 @@ export function PeriodizationsScreen() {
         exercise={selectedExercise}
         onSuccess={handleExerciseFormSuccess}
         onCancel={() => {
-          setScreen(selectedExercise ? 'exerciseDetail' : 'sessionDetail');
-          if (!selectedExercise) {
-            setSelectedExercise(undefined);
-          }
+          setScreen('sessionDetail');
+          setSelectedExercise(undefined);
         }}
       />
     );
@@ -326,14 +393,14 @@ export function PeriodizationsScreen() {
           <Ionicons name="calendar" size={24} color={colors.primary} style={{ marginRight: SPACING.sm }} />
           <Text style={[styles.title, { color: colors.text.primary }]}>Periodizações</Text>
         </View>
-        <Button
-          title="Nova"
+        <TouchableOpacity
           onPress={() => {
             setSelectedPeriodization(undefined);
             setScreen('form');
           }}
-          size="small"
-        />
+        >
+          <Ionicons name="add-circle" size={32} color={colors.primary} />
+        </TouchableOpacity>
       </View>
 
       {isLoading ? (

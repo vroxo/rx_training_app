@@ -20,11 +20,11 @@ export function WeekFrequency({ weekData }: WeekFrequencyProps) {
   const getStatusIcon = (status: DayStatus['status']) => {
     switch (status) {
       case 'completed':
-        return <Ionicons name="checkmark" size={20} color={colors.success} />;
+        return <Ionicons name="checkmark" size={18} color={colors.success} />;
       case 'today-pending':
-        return <Ionicons name="alert" size={20} color={colors.warning} />;
+        return <Ionicons name="alert" size={18} color={colors.warning} />;
       case 'missed':
-        return <Ionicons name="close" size={20} color={colors.error} />;
+        return <Ionicons name="close" size={18} color={colors.error} />;
       case 'upcoming':
         return null;
     }
@@ -67,7 +67,7 @@ export function WeekFrequency({ weekData }: WeekFrequencyProps) {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 0,
+    padding: SPACING.xs,
   },
   title: {
     fontSize: TYPOGRAPHY.size.lg,
@@ -76,16 +76,19 @@ const styles = StyleSheet.create({
   },
   weekContainer: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: SPACING.md,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: SPACING.xs,
   },
   dayContainer: {
     alignItems: 'center',
+    flex: 1,
+    minWidth: 40,
   },
   circle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',

@@ -8,7 +8,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Card, Button, Input, DatePicker } from '../components';
+import { Card, Button, Input, DateTimePickerComponent } from '../components';
 import { SPACING, TYPOGRAPHY, getThemeColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { toast } from '../services/toast';
@@ -117,10 +117,11 @@ export function SessionFormScreen({
           control={control}
           name="scheduledAt"
           render={({ field: { onChange, value } }) => (
-            <DatePicker
+            <DateTimePickerComponent
               label="Data e Hora do Treino *"
               value={value}
               onChange={onChange}
+              mode="datetime"
               error={errors.scheduledAt?.message}
             />
           )}

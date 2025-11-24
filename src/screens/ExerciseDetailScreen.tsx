@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button } from '../components';
 import { SPACING, TYPOGRAPHY, getThemeColors } from '../constants/theme';
+import { getMuscleGroupLabel } from '../constants';
 import { useTheme } from '../contexts/ThemeContext';
 import { toast } from '../services/toast';
 import { storageService } from '../services/storage';
@@ -180,7 +181,7 @@ export function ExerciseDetailScreen({
             <Text style={[styles.label, { color: colors.text.secondary }]}>Grupo Muscular:</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons name="body" size={16} color={colors.text.primary} style={{ marginRight: 4 }} />
-              <Text style={[styles.value, { color: colors.text.primary }]}>{exercise.muscleGroup}</Text>
+              <Text style={[styles.value, { color: colors.text.primary }]}>{getMuscleGroupLabel(exercise.muscleGroup)}</Text>
             </View>
           </View>
         )}
