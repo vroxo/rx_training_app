@@ -119,7 +119,11 @@ export function TechniqueFields({
 
   // Rest Pause Fields
   if (technique === 'restpause') {
+    const MAX_REST_PAUSES = 3;
+    const canAddMore = restPauseReps.length < MAX_REST_PAUSES;
+
     const handleAddRestPause = () => {
+      if (!canAddMore) return;
       const newDurations = [...restPauseReps, 15]; // Adiciona 15s por padrão
       onRestPauseRepsChange?.(newDurations);
     };
@@ -138,7 +142,7 @@ export function TechniqueFields({
     return (
       <View style={styles.techniqueContainer}>
         <Text style={[styles.techniqueTitle, { color: colors.text.secondary }]}>
-          Rest Pause - Pausas
+          Rest Pause - Pausas {restPauseReps.length > 0 && `(${restPauseReps.length}/${MAX_REST_PAUSES})`}
         </Text>
         
         {restPauseReps.length > 0 && (
@@ -169,18 +173,22 @@ export function TechniqueFields({
           </View>
         )}
 
-        <TouchableOpacity 
-          style={styles.addDropButton} 
-          onPress={handleAddRestPause}
-        >
-          <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
-          <Text style={[styles.addDropText, { color: colors.primary }]}>
-            Adicionar Pausa
-          </Text>
-        </TouchableOpacity>
+        {canAddMore && (
+          <TouchableOpacity 
+            style={styles.addDropButton} 
+            onPress={handleAddRestPause}
+          >
+            <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
+            <Text style={[styles.addDropText, { color: colors.primary }]}>
+              Adicionar Pausa
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <Text style={[styles.hint, { color: colors.text.tertiary }]}>
-          Faça reps até a falha, pause o tempo definido, repita
+          {canAddMore 
+            ? 'Faça reps até a falha, pause o tempo definido, repita (máx. 3 pausas)'
+            : 'Limite de 3 pausas atingido'}
         </Text>
       </View>
     );
