@@ -71,6 +71,14 @@ export function PeriodizationDetailScreen({
     loadSessions();
   }, [periodization.id]);
 
+  // Recarrega sessões quando sync completa
+  useEffect(() => {
+    if (lastSyncedAt) {
+      console.log('🔄 [PERIODIZATION_DETAIL] Recarregando sessões após sync...');
+      loadSessions();
+    }
+  }, [lastSyncedAt]);
+
   const loadSessions = async () => {
     try {
       setLoadingSessions(true);

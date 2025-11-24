@@ -9,6 +9,7 @@ import { toast } from '../services/toast';
 import type { Periodization, Session } from '../models';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useSyncStore } from '../stores/syncStore';
 
 interface SessionListScreenProps {
   periodization: Periodization;
@@ -27,6 +28,7 @@ export function SessionListScreen({
 }: SessionListScreenProps) {
   const { isDark } = useTheme();
   const colors = getThemeColors(isDark);
+  const { lastSyncedAt } = useSyncStore();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -46,6 +48,14 @@ export function SessionListScreen({
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
+
+  // Reload sessions when sync completes
+  useEffect(() => {
+    if (lastSyncedAt) {
+      console.log('🔄 [SESSION_LIST] Recarregando sessões após sync em:', lastSyncedAt);
+      loadSessions();
+    }
+  }, [lastSyncedAt, loadSessions]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
