@@ -1133,27 +1133,9 @@ export function SessionDetailScreen({
                                               </View>
                                             )}
                                             {set.technique && set.technique !== 'standard' && (
-                                              <>
-                                      {set.technique === 'dropset' ? (
-                                        <View style={[styles.setTypeBadge, { backgroundColor: getTechniqueColor(set.technique) }]}>
-                                          <Text style={styles.setTypeBadgeText}>Drop Set</Text>
-                                        </View>
-                                      ) : (
-                                        <TouchableOpacity
-                                                    onPress={() => toggleTechniqueExpansion(set.id)}
-                                                    style={[styles.setTypeBadge, { backgroundColor: getTechniqueColor(set.technique) }]}
-                                                  >
-                                                    <Text style={styles.setTypeBadgeText}>
-                                                      {getTechniqueCompactInfo(set) ? `${getTechniqueCompactInfo(set)}` : getTechniqueLabel(set.technique)}
-                                                    </Text>
-                                                    <Ionicons 
-                                                      name={expandedTechniques.has(set.id) ? "chevron-up" : "chevron-down"} 
-                                                      size={10} 
-                                                      color="#fff" 
-                                                    />
-                                                  </TouchableOpacity>
-                                                )}
-                                              </>
+                                              <View style={[styles.setTypeBadge, { backgroundColor: getTechniqueColor(set.technique) }]}>
+                                                <Text style={styles.setTypeBadgeText}>{getTechniqueLabel(set.technique)}</Text>
+                                              </View>
                                             )}
                                           </View>
 
@@ -1311,6 +1293,62 @@ export function SessionDetailScreen({
                                                     ))}
                                                   </View>
                                                 )}
+
+                                                {/* Rest Pause - cronômetros das pausas */}
+                                                {set.technique === 'restpause' && set.restPauseReps && set.restPauseReps.length > 0 && (
+                                                  <View style={styles.techniqueDetailsInline}>
+                                                    <View style={styles.restPauseTimersContainer}>
+                                                      {set.restPauseReps.map((duration, idx) => (
+                                                        <TouchableOpacity
+                                                          key={idx}
+                                                          onPress={() => handleStartTimer(duration)}
+                                                          style={[styles.restPauseTimerButton, { 
+                                                            backgroundColor: colors.background.secondary,
+                                                            borderColor: getTechniqueColor('restpause')
+                                                          }]}
+                                                        >
+                                                          <View style={[styles.restPauseTimerBadge, { backgroundColor: getTechniqueColor('restpause') }]}>
+                                                            <Text style={styles.restPauseTimerBadgeText}>{idx + 1}</Text>
+                                                          </View>
+                                                          <Ionicons name="timer" size={18} color={getTechniqueColor('restpause')} />
+                                                          <Text style={[styles.restPauseTimerText, { color: colors.text.primary }]}>
+                                                            {duration}s
+                                                          </Text>
+                                                        </TouchableOpacity>
+                                                      ))}
+                                                    </View>
+                                                  </View>
+                                                )}
+
+                                                {/* Cluster Set - info de reps e timer */}
+                                                {set.technique === 'clusterset' && (set.clusterReps || set.clusterRestDuration) && (
+                                                  <View style={styles.techniqueDetailsInline}>
+                                                    <View style={styles.clusterInfoContainer}>
+                                                      {set.clusterReps && (
+                                                        <View style={styles.clusterInfoItem}>
+                                                          <Ionicons name="fitness" size={16} color={getTechniqueColor('clusterset')} />
+                                                          <Text style={[styles.clusterInfoText, { color: colors.text.primary }]}>
+                                                            <Text style={{ fontWeight: '600' }}>{set.clusterReps}</Text> reps/cluster
+                                                          </Text>
+                                                        </View>
+                                                      )}
+                                                      {set.clusterRestDuration && (
+                                                        <TouchableOpacity
+                                                          onPress={() => handleStartTimer(set.clusterRestDuration!)}
+                                                          style={[styles.clusterTimerButton, { 
+                                                            backgroundColor: colors.background.secondary,
+                                                            borderColor: getTechniqueColor('clusterset')
+                                                          }]}
+                                                        >
+                                                          <Ionicons name="timer" size={18} color={getTechniqueColor('clusterset')} />
+                                                          <Text style={[styles.clusterTimerText, { color: colors.text.primary }]}>
+                                                            {set.clusterRestDuration}s
+                                                          </Text>
+                                                        </TouchableOpacity>
+                                                      )}
+                                                    </View>
+                                                  </View>
+                                                )}
                                               </View>
                                               
                                               {/* Linha secundária: RIR/RPE se existirem */}
@@ -1388,89 +1426,6 @@ export function SessionDetailScreen({
                                             </React.Fragment>
                                           )}
                                         </View>
-                                        
-                                        {/* Detalhes expandidos da técnica - APENAS Rest Pause e Cluster Set */}
-                                        {set.technique && set.technique !== 'standard' && set.technique !== 'dropset' && expandedTechniques.has(set.id) && (
-                                          <View style={[styles.techniqueExpandedDetails, { 
-                                            backgroundColor: `${getTechniqueColor(set.technique)}15`,
-                                            borderLeftColor: getTechniqueColor(set.technique)
-                                          }]}>
-                                            {set.technique === 'restpause' && set.restPauseReps && set.restPauseReps.length > 0 && (
-                                              <>
-                                                <View style={styles.techniqueDetailHeader}>
-                                                  <Ionicons name="pause-circle" size={18} color={getTechniqueColor(set.technique)} />
-                                                  <Text style={[styles.techniqueDetailTitle, { color: getTechniqueColor(set.technique) }]}>
-                                                    Rest Pause
-                                                  </Text>
-                                                </View>
-                                                <View style={styles.techniqueDetailContent}>
-                                                  <Text style={[styles.techniqueDetailText, { color: colors.text.secondary, fontSize: TYPOGRAPHY.size.xs, marginBottom: SPACING.xs }]}>
-                                                    Faça reps até a falha, pause e continue
-                                                  </Text>
-                                                  <View style={styles.restPauseTimersContainer}>
-                                                    {set.restPauseReps.map((duration, idx) => (
-                                                      <TouchableOpacity
-                                                        key={idx}
-                                                        onPress={() => handleStartTimer(duration)}
-                                                        style={[styles.restPauseTimerButton, { 
-                                                          backgroundColor: colors.background.secondary,
-                                                          borderColor: getTechniqueColor('restpause')
-                                                        }]}
-                                                      >
-                                                        <View style={[styles.restPauseTimerBadge, { backgroundColor: getTechniqueColor('restpause') }]}>
-                                                          <Text style={styles.restPauseTimerBadgeText}>{idx + 1}</Text>
-                                                        </View>
-                                                        <Ionicons name="timer" size={20} color={getTechniqueColor('restpause')} />
-                                                        <Text style={[styles.restPauseTimerText, { color: colors.text.primary }]}>
-                                                          {duration}s
-                                                        </Text>
-                                                      </TouchableOpacity>
-                                                    ))}
-                                                  </View>
-                                                </View>
-                                              </>
-                                            )}
-                                            {set.technique === 'clusterset' && (set.clusterReps || set.clusterRestDuration) && (
-                                              <>
-                                                <View style={styles.techniqueDetailHeader}>
-                                                  <Ionicons name="layers" size={18} color={getTechniqueColor(set.technique)} />
-                                                  <Text style={[styles.techniqueDetailTitle, { color: getTechniqueColor(set.technique) }]}>
-                                                    Cluster Set
-                                                  </Text>
-                                                </View>
-                                                <View style={styles.techniqueDetailContent}>
-                                                  <Text style={[styles.techniqueDetailText, { color: colors.text.secondary, fontSize: TYPOGRAPHY.size.xs, marginBottom: SPACING.xs }]}>
-                                                    Mini-séries com descansos curtos entre elas
-                                                  </Text>
-                                                  <View style={styles.clusterInfoContainer}>
-                                                    {set.clusterReps && (
-                                                      <View style={styles.clusterInfoItem}>
-                                                        <Ionicons name="fitness" size={16} color={getTechniqueColor('clusterset')} />
-                                                        <Text style={[styles.clusterInfoText, { color: colors.text.primary }]}>
-                                                          <Text style={{ fontWeight: '600' }}>{set.clusterReps}</Text> reps
-                                                        </Text>
-                                                      </View>
-                                                    )}
-                                                    {set.clusterRestDuration && (
-                                                      <TouchableOpacity
-                                                        onPress={() => handleStartTimer(set.clusterRestDuration!)}
-                                                        style={[styles.clusterTimerButton, { 
-                                                          backgroundColor: colors.background.secondary,
-                                                          borderColor: getTechniqueColor('clusterset')
-                                                        }]}
-                                                      >
-                                                        <Ionicons name="timer" size={20} color={getTechniqueColor('clusterset')} />
-                                                        <Text style={[styles.clusterTimerText, { color: colors.text.primary }]}>
-                                                          {set.clusterRestDuration}s
-                                                        </Text>
-                                                      </TouchableOpacity>
-                                                    )}
-                                                  </View>
-                                                </View>
-                                              </>
-                                            )}
-                                          </View>
-                                        )}
                                       </View>
                                       );
                                     })}
@@ -1826,6 +1781,62 @@ export function SessionDetailScreen({
                                               )}
                                             </View>
                                           ))}
+                                        </View>
+                                      )}
+
+                                      {/* Rest Pause - cronômetros das pausas */}
+                                      {set.technique === 'restpause' && set.restPauseReps && set.restPauseReps.length > 0 && (
+                                        <View style={styles.techniqueDetailsInline}>
+                                          <View style={styles.restPauseTimersContainer}>
+                                            {set.restPauseReps.map((duration, idx) => (
+                                              <TouchableOpacity
+                                                key={idx}
+                                                onPress={() => handleStartTimer(duration)}
+                                                style={[styles.restPauseTimerButton, { 
+                                                  backgroundColor: colors.background.secondary,
+                                                  borderColor: getTechniqueColor('restpause')
+                                                }]}
+                                              >
+                                                <View style={[styles.restPauseTimerBadge, { backgroundColor: getTechniqueColor('restpause') }]}>
+                                                  <Text style={styles.restPauseTimerBadgeText}>{idx + 1}</Text>
+                                                </View>
+                                                <Ionicons name="timer" size={18} color={getTechniqueColor('restpause')} />
+                                                <Text style={[styles.restPauseTimerText, { color: colors.text.primary }]}>
+                                                  {duration}s
+                                                </Text>
+                                              </TouchableOpacity>
+                                            ))}
+                                          </View>
+                                        </View>
+                                      )}
+
+                                      {/* Cluster Set - info de reps e timer */}
+                                      {set.technique === 'clusterset' && (set.clusterReps || set.clusterRestDuration) && (
+                                        <View style={styles.techniqueDetailsInline}>
+                                          <View style={styles.clusterInfoContainer}>
+                                            {set.clusterReps && (
+                                              <View style={styles.clusterInfoItem}>
+                                                <Ionicons name="fitness" size={16} color={getTechniqueColor('clusterset')} />
+                                                <Text style={[styles.clusterInfoText, { color: colors.text.primary }]}>
+                                                  <Text style={{ fontWeight: '600' }}>{set.clusterReps}</Text> reps/cluster
+                                                </Text>
+                                              </View>
+                                            )}
+                                            {set.clusterRestDuration && (
+                                              <TouchableOpacity
+                                                onPress={() => handleStartTimer(set.clusterRestDuration!)}
+                                                style={[styles.clusterTimerButton, { 
+                                                  backgroundColor: colors.background.secondary,
+                                                  borderColor: getTechniqueColor('clusterset')
+                                                }]}
+                                              >
+                                                <Ionicons name="timer" size={18} color={getTechniqueColor('clusterset')} />
+                                                <Text style={[styles.clusterTimerText, { color: colors.text.primary }]}>
+                                                  {set.clusterRestDuration}s
+                                                </Text>
+                                              </TouchableOpacity>
+                                            )}
+                                          </View>
                                         </View>
                                       )}
                                     </View>
@@ -2471,29 +2482,12 @@ const styles = StyleSheet.create({
   exerciseContainer: {
     marginBottom: SPACING.sm,
   },
-  techniqueExpandedDetails: {
+  techniqueDetailsInline: {
     width: '100%',
     marginTop: SPACING.xs,
-    padding: SPACING.md,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-  },
-  techniqueDetailHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-    gap: SPACING.xs,
-  },
-  techniqueDetailTitle: {
-    fontSize: TYPOGRAPHY.size.base,
-    fontWeight: TYPOGRAPHY.weight.bold as any,
-  },
-  techniqueDetailContent: {
-    gap: SPACING.xs,
-  },
-  techniqueDetailText: {
-    fontSize: TYPOGRAPHY.size.sm,
-    lineHeight: 20,
+    paddingTop: SPACING.xs,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(139, 92, 246, 0.2)',
   },
   exerciseSecondaryActions: {
     flexDirection: 'row',
