@@ -3,18 +3,21 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import { SPACING, TYPOGRAPHY } from '../constants/theme';
 import type { TechniqueType } from '../constants/techniques';
+import { getTechniqueColor } from '../constants/techniques';
 
 interface TechniqueFieldsProps {
   technique?: TechniqueType | string;
   dropSetWeights?: number[];
   dropSetReps?: number[];
   restPauseDuration?: number;
+  restPauseReps?: number[]; // Array de durações de pausa em segundos
   clusterReps?: number;
   clusterRestDuration?: number;
   colors: any;
   onDropSetWeightsChange?: (weights: number[]) => void;
   onDropSetRepsChange?: (reps: number[]) => void;
   onRestPauseDurationChange?: (duration: number) => void;
+  onRestPauseRepsChange?: (durations: number[]) => void; // Callback para durações
   onClusterRepsChange?: (reps: number) => void;
   onClusterRestDurationChange?: (duration: number) => void;
 }
@@ -24,12 +27,14 @@ export function TechniqueFields({
   dropSetWeights = [],
   dropSetReps = [],
   restPauseDuration,
+  restPauseReps = [],
   clusterReps,
   clusterRestDuration,
   colors,
   onDropSetWeightsChange,
   onDropSetRepsChange,
   onRestPauseDurationChange,
+  onRestPauseRepsChange,
   onClusterRepsChange,
   onClusterRestDurationChange,
 }: TechniqueFieldsProps) {
@@ -114,30 +119,68 @@ export function TechniqueFields({
 
   // Rest Pause Fields
   if (technique === 'restpause') {
+    const handleAddRestPause = () => {
+      const newDurations = [...restPauseReps, 15]; // Adiciona 15s por padrão
+      onRestPauseRepsChange?.(newDurations);
+    };
+
+    const handleRemoveRestPause = (index: number) => {
+      const newDurations = restPauseReps.filter((_, i) => i !== index);
+      onRestPauseRepsChange?.(newDurations);
+    };
+
+    const handleChangeDuration = (index: number, value: string) => {
+      const newDurations = [...restPauseReps];
+      newDurations[index] = parseInt(value) || 0;
+      onRestPauseRepsChange?.(newDurations);
+    };
+
     return (
       <View style={styles.techniqueContainer}>
         <Text style={[styles.techniqueTitle, { color: colors.text.secondary }]}>
-          Rest Pause - Configuração
+          Rest Pause - Pausas
         </Text>
-        <View style={styles.inputRow}>
-          <View style={styles.clusterInputGroup}>
-            <Text style={[styles.inputLabel, { color: colors.text.secondary }]}>Descanso (s)</Text>
-            <TextInput
-              style={[styles.input, { 
-                backgroundColor: colors.background.primary, 
-                borderColor: colors.border, 
-                color: colors.text.primary 
-              }]}
-              placeholder="15-20"
-              placeholderTextColor={colors.text.tertiary}
-              keyboardType="numeric"
-              value={restPauseDuration?.toString() || ''}
-              onChangeText={(value) => onRestPauseDurationChange?.(parseInt(value) || 0)}
-            />
+        
+        {restPauseReps.length > 0 && (
+          <View style={styles.restPauseList}>
+            {restPauseReps.map((duration, index) => (
+              <View key={index} style={styles.restPauseRow}>
+                <View style={[styles.restPauseBadge, { backgroundColor: getTechniqueColor('restpause') }]}>
+                  <Text style={styles.restPauseBadgeText}>{index + 1}</Text>
+                </View>
+                <TextInput
+                  style={[styles.restPauseInput, { 
+                    backgroundColor: colors.background.primary, 
+                    borderColor: colors.border, 
+                    color: colors.text.primary 
+                  }]}
+                  placeholder="15"
+                  placeholderTextColor={colors.text.tertiary}
+                  keyboardType="numeric"
+                  value={duration?.toString() || ''}
+                  onChangeText={(value) => handleChangeDuration(index, value)}
+                />
+                <Text style={[styles.unit, { color: colors.text.secondary }]}>s</Text>
+                <TouchableOpacity onPress={() => handleRemoveRestPause(index)}>
+                  <Ionicons name="close-circle" size={20} color={colors.error} />
+                </TouchableOpacity>
+              </View>
+            ))}
           </View>
-        </View>
+        )}
+
+        <TouchableOpacity 
+          style={styles.addDropButton} 
+          onPress={handleAddRestPause}
+        >
+          <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
+          <Text style={[styles.addDropText, { color: colors.primary }]}>
+            Adicionar Pausa
+          </Text>
+        </TouchableOpacity>
+
         <Text style={[styles.hint, { color: colors.text.tertiary }]}>
-          Faça repetições até a falha, pause o tempo definido e continue
+          Faça reps até a falha, pause o tempo definido, repita
         </Text>
       </View>
     );
@@ -275,6 +318,36 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: TYPOGRAPHY.size.xs,
     marginBottom: SPACING.xs,
+  },
+  restPauseList: {
+    marginBottom: SPACING.xs,
+  },
+  restPauseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+    gap: SPACING.xs,
+  },
+  restPauseBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  restPauseBadgeText: {
+    color: '#fff',
+    fontSize: TYPOGRAPHY.size.xs,
+    fontWeight: TYPOGRAPHY.weight.bold as any,
+  },
+  restPauseInput: {
+    fontSize: TYPOGRAPHY.size.sm,
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    width: 60,
+    textAlign: 'center',
   },
 });
 

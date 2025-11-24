@@ -573,11 +573,11 @@ export function SessionDetailScreen({
       const dropSetReps = editValues.technique === 'dropset' && editValues.dropSetReps.length > 0 
         ? editValues.dropSetReps 
         : undefined;
-      const restPauseDuration = editValues.technique === 'restpause' && editValues.restPauseDuration 
-        ? parseInt(editValues.restPauseDuration) 
+      // Rest pause: não usa mais restPauseDuration único, usa array
+      const restPauseDuration = undefined;
+      const restPauseReps = editValues.technique === 'restpause' && editValues.restPauseReps.length > 0
+        ? editValues.restPauseReps
         : undefined;
-      // Rest pause reps não são mais usados na UI simplificada
-      const restPauseReps = undefined;
       const clusterReps = editValues.technique === 'clusterset' && editValues.clusterReps 
         ? parseInt(editValues.clusterReps) 
         : undefined;
@@ -1375,7 +1375,7 @@ export function SessionDetailScreen({
                                             backgroundColor: `${getTechniqueColor(set.technique)}15`,
                                             borderLeftColor: getTechniqueColor(set.technique)
                                           }]}>
-                                            {set.technique === 'restpause' && set.restPauseDuration && (
+                                            {set.technique === 'restpause' && set.restPauseReps && set.restPauseReps.length > 0 && (
                                               <>
                                                 <View style={styles.techniqueDetailHeader}>
                                                   <Ionicons name="pause-circle" size={18} color={getTechniqueColor(set.technique)} />
@@ -1384,12 +1384,29 @@ export function SessionDetailScreen({
                                                   </Text>
                                                 </View>
                                                 <View style={styles.techniqueDetailContent}>
-                                                  <Text style={[styles.techniqueDetailText, { color: colors.text.primary }]}>
-                                                    Pausas de <Text style={{ fontWeight: '600' }}>{set.restPauseDuration}s</Text> entre mini-sets
+                                                  <Text style={[styles.techniqueDetailText, { color: colors.text.secondary, fontSize: TYPOGRAPHY.size.xs, marginBottom: SPACING.xs }]}>
+                                                    Faça reps até a falha, pause e continue
                                                   </Text>
-                                                  <Text style={[styles.techniqueDetailText, { color: colors.text.secondary, fontSize: TYPOGRAPHY.size.xs }]}>
-                                                    Faça reps até a falha → pause {set.restPauseDuration}s → continue até não conseguir mais
-                                                  </Text>
+                                                  <View style={styles.restPauseTimersContainer}>
+                                                    {set.restPauseReps.map((duration, idx) => (
+                                                      <TouchableOpacity
+                                                        key={idx}
+                                                        onPress={() => handleStartTimer(duration)}
+                                                        style={[styles.restPauseTimerButton, { 
+                                                          backgroundColor: colors.background.secondary,
+                                                          borderColor: getTechniqueColor('restpause')
+                                                        }]}
+                                                      >
+                                                        <View style={[styles.restPauseTimerBadge, { backgroundColor: getTechniqueColor('restpause') }]}>
+                                                          <Text style={styles.restPauseTimerBadgeText}>{idx + 1}</Text>
+                                                        </View>
+                                                        <Ionicons name="timer" size={20} color={getTechniqueColor('restpause')} />
+                                                        <Text style={[styles.restPauseTimerText, { color: colors.text.primary }]}>
+                                                          {duration}s
+                                                        </Text>
+                                                      </TouchableOpacity>
+                                                    ))}
+                                                  </View>
                                                 </View>
                                               </>
                                             )}
@@ -1708,12 +1725,14 @@ export function SessionDetailScreen({
                                       dropSetWeights={editValues.dropSetWeights}
                                       dropSetReps={editValues.dropSetReps}
                                       restPauseDuration={editValues.restPauseDuration ? parseInt(editValues.restPauseDuration) : undefined}
+                                      restPauseReps={editValues.restPauseReps}
                                       clusterReps={editValues.clusterReps ? parseInt(editValues.clusterReps) : undefined}
                                       clusterRestDuration={editValues.clusterRestDuration ? parseInt(editValues.clusterRestDuration) : undefined}
                                       colors={colors}
                                       onDropSetWeightsChange={(weights) => setEditValues(prev => ({ ...prev, dropSetWeights: weights }))}
                                       onDropSetRepsChange={(reps) => setEditValues(prev => ({ ...prev, dropSetReps: reps }))}
                                       onRestPauseDurationChange={(duration) => setEditValues(prev => ({ ...prev, restPauseDuration: duration.toString() }))}
+                                      onRestPauseRepsChange={(durations) => setEditValues(prev => ({ ...prev, restPauseReps: durations }))}
                                       onClusterRepsChange={(reps) => setEditValues(prev => ({ ...prev, clusterReps: reps.toString() }))}
                                       onClusterRestDurationChange={(duration) => setEditValues(prev => ({ ...prev, clusterRestDuration: duration.toString() }))}
                                     />
@@ -2442,5 +2461,35 @@ const styles = StyleSheet.create({
   infoCompactValue: {
     fontSize: TYPOGRAPHY.size.sm,
     fontWeight: TYPOGRAPHY.weight.medium as any,
+  },
+  restPauseTimersContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+  },
+  restPauseTimerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: 8,
+    borderWidth: 2,
+  },
+  restPauseTimerBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  restPauseTimerBadgeText: {
+    color: '#fff',
+    fontSize: TYPOGRAPHY.size.xs,
+    fontWeight: TYPOGRAPHY.weight.bold as any,
+  },
+  restPauseTimerText: {
+    fontSize: TYPOGRAPHY.size.sm,
+    fontWeight: TYPOGRAPHY.weight.semibold as any,
   },
 });

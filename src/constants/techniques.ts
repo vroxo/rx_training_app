@@ -54,9 +54,13 @@ export function getTechniqueColor(technique?: TechniqueType | string): string {
 
 // Generate compact info for technique badges
 export function getTechniqueCompactInfo(set: { technique?: string; restPauseReps?: number[]; restPauseDuration?: number; clusterReps?: number; clusterRestDuration?: number }): string {
-  if (set.technique === 'restpause' && set.restPauseDuration) {
-    // Example: "Pause 15s"
-    return `Pause ${set.restPauseDuration}s`;
+  if (set.technique === 'restpause' && set.restPauseReps && set.restPauseReps.length > 0) {
+    // Example: "10s+15s+20s" ou "15s×3" se todos iguais
+    const allSame = set.restPauseReps.every(d => d === set.restPauseReps![0]);
+    if (allSame) {
+      return `${set.restPauseReps[0]}s×${set.restPauseReps.length}`;
+    }
+    return set.restPauseReps.join('s+') + 's';
   }
   
   if (set.technique === 'clusterset' && set.clusterReps && set.clusterRestDuration) {
