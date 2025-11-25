@@ -98,7 +98,6 @@ export function DateTimePickerComponent({
           }
         }
       } catch (e) {
-        console.log('Data inválida:', formatted);
       }
     }
   };
@@ -123,7 +122,6 @@ export function DateTimePickerComponent({
           onChange(newDate);
         }
       } catch (e) {
-        console.log('Hora inválida:', formatted);
       }
     }
   };

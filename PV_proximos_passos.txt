@@ -1,0 +1,42 @@
+
+Icones e Splash Screen:
+    1. ÍCONE DO APP
+        Especificações:
+            Formato: PNG com fundo transparente ou cor sólida
+            Tamanho ideal: 1024x1024px (o Expo gera os outros tamanhos)
+            Conteúdo: Logo do app centralizado, com padding de ~10-15%
+
+    2. SPLASH SCREEN
+        Especificações:
+            Formato: PNG
+            Tamanho ideal: 1242x2436px (adapta para todos os devices)
+            Conteúdo: Logo centralizado + fundo
+
+
+Técnicas nas sets:
+    Mais Técnicas: Superset, Giant Set, Pre/Post-exhaustion
+    Analytics: Rastrear efetividade das técnicas
+    Templates: Salvar combinações favoritas de técnicas
+    Performance Tracking: Comparar resultados com/sem técnicas
+
+Relatório da Periodização:
+    Analytics por Grupo: Adicionar dashboard com estatísticas de volume/frequência por grupo muscular
+    Sugestões Inteligentes: IA para sugerir grupos musculares baseado no nome do exercício
+    Distribuição Visual: Gráfico de pizza mostrando distribuição de treino por grupo
+    Templates: Criar templates de treino baseados em grupos musculares (ex: "Push/Pull/Legs")
+    Multi-seleção: Permitir filtrar por múltiplos grupos simultaneamente nos gráficos
+
+    Histórico de Tempos de Descanso: Mostrar o tempo médio de descanso usado em treinos anteriores para aquele exercício, ajudando o usuário a manter consistência.
+    Notificação de Cronômetro: Adicionar vibração/som quando o cronômetro terminar (se ainda não implementado).
+
+
+Erros no Mobile:
+    1.  No Modal dos gráficos o Header está ficando atrás das informação de data e bateria do próprio telefone
+    2.  Sets estão vindo marcados como concluidos na copia da session
+    3.  O X para fechar o cronometro está quebrando
+    4.  O botão toogle para mudar de tema está perdendo padrão e ficando quadrado
+    5.  Drag and drop: voltar ao padrão anterior, pressionar o card do exercício e mover para onde quer
+
+
+      
+

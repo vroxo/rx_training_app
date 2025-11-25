@@ -1,2 +1,0 @@
-// Backup do App.tsx
-

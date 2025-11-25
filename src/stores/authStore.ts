@@ -3,9 +3,14 @@ import type { User } from '../models';
 import { authService } from '../services/auth';
 import { useSyncStore } from './syncStore';
 
+// Global flag to prevent multiple restore attempts
+let isRestoring = false;
+let hasRestored = false;
+
 interface AuthState {
   user: User | null;
   isLoading: boolean;
+  isInitializing: boolean;
   isAuthenticated: boolean;
   error: string | null;
   
@@ -22,6 +27,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: false,
+  isInitializing: true,
   isAuthenticated: false,
   error: null,
 
@@ -32,10 +38,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user, isAuthenticated: true, isLoading: false });
       
       // Sync automático imediato após login
-      console.log('🔄 [LOGIN] Iniciando sincronização automática...');
       const syncStore = useSyncStore.getState();
       await syncStore.sync(user.id);
-      console.log('✅ [LOGIN] Sincronização concluída!');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Sign in failed';
       set({ error: message, isLoading: false });
@@ -50,10 +54,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user, isAuthenticated: true, isLoading: false });
       
       // Sync automático imediato após cadastro
-      console.log('🔄 [SIGNUP] Iniciando sincronização automática...');
       const syncStore = useSyncStore.getState();
       await syncStore.sync(user.id);
-      console.log('✅ [SIGNUP] Sincronização concluída!');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Sign up failed';
       set({ error: message, isLoading: false });
@@ -86,25 +88,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   restoreSession: async () => {
-    // Don't set isLoading to true to avoid blocking UI
-    set({ error: null });
+    // Prevent multiple restore attempts
+    if (isRestoring || hasRestored) {
+      return;
+    }
+    
+    isRestoring = true;
+    set({ isInitializing: true, error: null });
+    
     try {
       const user = await authService.restoreSession();
-      set({ 
-        user, 
-        isAuthenticated: user !== null
-      });
       
-      // Sync automático imediato após restaurar sessão
+      // Only set user AFTER sync completes
       if (user) {
-        console.log('🔄 [RESTORE] Iniciando sincronização automática...');
         const syncStore = useSyncStore.getState();
         await syncStore.sync(user.id);
-        console.log('✅ [RESTORE] Sincronização concluída!');
+        
+        // Now set the user to trigger navigation to Main
+        set({ 
+          user, 
+          isAuthenticated: true,
+          isInitializing: false
+        });
+      } else {
+        set({ 
+          user: null, 
+          isAuthenticated: false,
+          isInitializing: false
+        });
       }
     } catch (error) {
       console.error('Error restoring session:', error);
-      set({ user: null, isAuthenticated: false });
+      set({ user: null, isAuthenticated: false, isInitializing: false });
+    } finally {
+      isRestoring = false;
+      hasRestored = true;
     }
   },
 

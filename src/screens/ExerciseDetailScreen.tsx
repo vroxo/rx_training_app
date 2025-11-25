@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button } from '../components';
@@ -53,20 +54,32 @@ export function ExerciseDetailScreen({
   }, [loadSets]);
 
   const handleDelete = async () => {
-    if (!confirm('Tem certeza que deseja excluir este exercício? Todas as séries serão perdidas.')) {
-      return;
-    }
-    
-    setIsDeleting(true);
-    try {
-      await storageService.deleteExercise(exercise.id);
-      toast.success('Exercício excluído!');
-      onDelete();
-    } catch (error) {
-      console.error('Error deleting exercise:', error);
-      toast.error('Não foi possível excluir o exercício');
-      setIsDeleting(false);
-    }
+    Alert.alert(
+      'Excluir Exercício',
+      'Tem certeza que deseja excluir este exercício? Todas as séries serão perdidas.',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              await storageService.deleteExercise(exercise.id);
+              toast.success('Exercício excluído!');
+              onDelete();
+            } catch (error) {
+              console.error('Error deleting exercise:', error);
+              toast.error('Não foi possível excluir o exercício');
+              setIsDeleting(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleAddSet = async () => {
@@ -148,18 +161,30 @@ export function ExerciseDetailScreen({
   };
 
   const handleDeleteSet = async (set: SetType) => {
-    if (!confirm('Tem certeza que deseja excluir esta série?')) {
-      return;
-    }
-    
-    try {
-      await storageService.deleteSet(set.id);
-      await loadSets();
-      toast.success('Série excluída!');
-    } catch (error) {
-      console.error('Error deleting set:', error);
-      toast.error('Não foi possível excluir a série');
-    }
+    Alert.alert(
+      'Excluir Série',
+      'Tem certeza que deseja excluir esta série?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await storageService.deleteSet(set.id);
+              await loadSets();
+              toast.success('Série excluída!');
+            } catch (error) {
+              console.error('Error deleting set:', error);
+              toast.error('Não foi possível excluir a série');
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (

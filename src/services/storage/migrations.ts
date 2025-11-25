@@ -7,12 +7,10 @@ import { storageService } from './index';
  */
 export async function migrateSetOrderIndex() {
   try {
-    console.log('🔄 [MIGRATION] Verificando séries sem orderIndex...');
     
     // Busca todos os exercícios direto do AsyncStorage
     const exercisesData = await AsyncStorage.getItem('@rx_training:exercises');
     if (!exercisesData) {
-      console.log('✅ [MIGRATION] No exercises found');
       return 0;
     }
     
@@ -34,15 +32,12 @@ export async function migrateSetOrderIndex() {
             needsSync: true, // Marca para sincronizar com Supabase
           });
           fixed++;
-          console.log(`✅ [MIGRATION] Fixed orderIndex for set ${set.id}: ${i}`);
         }
       }
     }
     
     if (fixed > 0) {
-      console.log(`✅ [MIGRATION] Fixed ${fixed} sets without orderIndex`);
     } else {
-      console.log('✅ [MIGRATION] All sets have orderIndex');
     }
     
     return fixed;

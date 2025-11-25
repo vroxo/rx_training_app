@@ -22,7 +22,6 @@ export class DatabaseService {
       this.db = await SQLite.openDatabaseAsync('rx_training.db');
       await this.createTables();
       await this.runMigrations();
-      console.log('✅ Database initialized successfully');
     } catch (error) {
       console.error('❌ Error initializing database:', error);
       throw error;
@@ -41,15 +40,12 @@ export class DatabaseService {
     try {
       // Try to run migrations - will fail silently if columns already exist
       await this.db.execAsync(MIGRATIONS_SQL);
-      console.log('✅ Migrations executed successfully');
     } catch (error: any) {
       // Ignore "duplicate column" errors (means migrations already ran)
-      if (error?.message?.includes('duplicate column')) {
-        console.log('✅ Migrations already applied');
-      } else {
+      if (!error?.message?.includes('duplicate column')) {
         console.error('⚠️ Migration warning:', error);
-        // Don't throw - allow app to continue even if migrations fail
       }
+      // Don't throw - allow app to continue even if migrations fail
     }
   }
 
@@ -764,7 +760,6 @@ export class DatabaseService {
     if (this.db) {
       await this.db.closeAsync();
       this.db = null;
-      console.log('✅ Database closed');
     }
   }
 }

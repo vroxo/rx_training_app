@@ -19,7 +19,6 @@ import { SessionDetailScreen } from './SessionDetailScreen';
 import { ExerciseListScreen } from './ExerciseListScreen';
 import { ExerciseFormScreen } from './ExerciseFormScreen';
 import { ExerciseDetailScreen } from './ExerciseDetailScreen';
-import { useSyncStore } from '../stores/syncStore';
 
 type Screen = 'list' | 'form' | 'detail' | 'sessions' | 'sessionForm' | 'sessionDetail' | 'exercises' | 'exerciseForm' | 'exerciseDetail';
 type SelectedSession = Session | undefined;
@@ -29,7 +28,6 @@ export function PeriodizationsScreen() {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const colors = getThemeColors(isDark);
-  const { lastSyncedAt } = useSyncStore();
   const [screen, setScreen] = useState<Screen>('list');
   const [periodizations, setPeriodizations] = useState<Periodization[]>([]);
   const [selectedPeriodization, setSelectedPeriodization] = useState<Periodization | undefined>();
@@ -57,14 +55,6 @@ export function PeriodizationsScreen() {
   useEffect(() => {
     loadPeriodizations();
   }, [loadPeriodizations]);
-
-  // Reload data when sync completes
-  useEffect(() => {
-    if (user && lastSyncedAt) {
-      console.log('🔄 [PERIODIZATIONS] Recarregando dados após sync em:', lastSyncedAt);
-      loadPeriodizations();
-    }
-  }, [lastSyncedAt, user, loadPeriodizations]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);

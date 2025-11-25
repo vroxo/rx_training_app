@@ -18,7 +18,6 @@ export function useAutoSync() {
     // 1. User is logged in
     // 2. User is online
     if (!user || !isOnline) {
-      console.log('⏸️ Auto-sync pausado:', {
         userLoggedIn: !!user,
         isOnline,
       });
@@ -26,14 +25,11 @@ export function useAutoSync() {
     }
 
     const intervalMs = autoSyncConfig.intervalMinutes * 60 * 1000;
-    console.log(`⏰ Auto-sync ativado: a cada ${autoSyncConfig.intervalMinutes} minutos`);
 
     // Setup interval for auto-sync
     intervalRef.current = setInterval(async () => {
       try {
-        console.log('🔄 [AUTO-SYNC] Iniciando sincronização automática...');
         await sync(user.id);
-        console.log('✅ [AUTO-SYNC] Sincronização automática concluída!');
       } catch (error) {
         console.error('❌ [AUTO-SYNC] Erro na sincronização automática:', error);
       }
@@ -42,12 +38,12 @@ export function useAutoSync() {
     // Cleanup on unmount or when dependencies change
     return () => {
       if (intervalRef.current) {
-        console.log('🛑 Auto-sync parado');
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
-  }, [user, autoSyncConfig.intervalMinutes, isOnline, sync]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, autoSyncConfig.intervalMinutes, isOnline]); // sync is stable from Zustand
 
   return null;
 }

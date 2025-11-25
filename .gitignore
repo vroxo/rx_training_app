@@ -64,3 +64,6 @@ build/
 tmp/
 temp/
 
+# Private Vision Documents (Business Strategy)
+PV_*.md
+

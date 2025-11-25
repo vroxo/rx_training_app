@@ -55,11 +55,9 @@ export function PeriodizationDetailScreen({
   // Recarrega periodization do storage quando sync completa
   useEffect(() => {
     if (lastSyncedAt) {
-      console.log('🔄 [PERIODIZATION_DETAIL] Recarregando periodization após sync...');
       storageService.getPeriodizationById(periodization.id).then((updated) => {
         if (updated) {
           setCurrentPeriodization(updated);
-          console.log('✅ [PERIODIZATION_DETAIL] Periodization recarregada');
         }
       }).catch((error) => {
         console.error('❌ [PERIODIZATION_DETAIL] Erro ao recarregar:', error);
@@ -74,7 +72,6 @@ export function PeriodizationDetailScreen({
   // Recarrega sessões quando sync completa
   useEffect(() => {
     if (lastSyncedAt) {
-      console.log('🔄 [PERIODIZATION_DETAIL] Recarregando sessões após sync...');
       loadSessions();
     }
   }, [lastSyncedAt]);
@@ -135,21 +132,33 @@ export function PeriodizationDetailScreen({
   };
 
   const handleDelete = () => {
-    if (!confirm('Tem certeza que deseja excluir esta periodização? Esta ação não pode ser desfeita.')) {
-      return;
-    }
-
-    setIsDeleting(true);
-    storageService.deletePeriodization(currentPeriodization.id)
-      .then(() => {
-        toast.success('Periodização excluída!');
-        onDelete();
-      })
-      .catch((error) => {
-        console.error('Error deleting periodization:', error);
-        toast.error('Não foi possível excluir a periodização');
-        setIsDeleting(false);
-      });
+    Alert.alert(
+      'Excluir Periodização',
+      'Tem certeza que deseja excluir esta periodização? Esta ação não pode ser desfeita.',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => {
+            setIsDeleting(true);
+            storageService.deletePeriodization(currentPeriodization.id)
+              .then(() => {
+                toast.success('Periodização excluída!');
+                onDelete();
+              })
+              .catch((error) => {
+                console.error('Error deleting periodization:', error);
+                toast.error('Não foi possível excluir a periodização');
+                setIsDeleting(false);
+              });
+          },
+        },
+      ]
+    );
   };
 
   const durationDays = Math.ceil(

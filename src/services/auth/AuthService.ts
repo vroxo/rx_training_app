@@ -109,19 +109,13 @@ export class AuthService {
       // Try to get from secure storage
       const sessionJson = await this.getStoredSession();
       
-      if (!sessionJson) {
-        console.log('No stored session found');
-        return null;
-      }
+      if (!sessionJson) return null;
 
       const session = JSON.parse(sessionJson);
       
       // Set the session in Supabase with timeout
       const timeoutPromise = new Promise<null>((resolve) => {
-        setTimeout(() => {
-          console.log('⚠️ Session restore timeout');
-          resolve(null);
-        }, 5000); // 5 seconds timeout
+        setTimeout(() => resolve(null), 5000); // 5 seconds timeout
       });
 
       const sessionPromise = supabase.auth.setSession({

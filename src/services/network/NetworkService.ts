@@ -24,7 +24,6 @@ export class NetworkService {
 
       // Notify listeners if state changed
       if (wasOnline !== this.isOnline) {
-        console.log(`📡 Network status: ${this.isOnline ? 'ONLINE' : 'OFFLINE'}`);
         this.notifyListeners();
       }
     });

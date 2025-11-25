@@ -1,5 +1,6 @@
 import { storageService } from '../storage';
 import type { Periodization, Session, Exercise, Set } from '../../models';
+import { getMuscleGroupLabel } from '../../constants/muscleGroups';
 
 export interface DashboardStats {
   totalPeriodizations: number;
@@ -21,6 +22,38 @@ export interface ExerciseProgress {
   dates: Date[];
   maxWeights: number[];
   totalVolumes: number[];
+}
+
+export interface PersonalRecord {
+  exerciseName: string;
+  weight: number;
+  reps: number;
+  achievedAt: Date;
+  improvement: number; // kg melhorados
+}
+
+export interface TrainingIntensity {
+  averageRIR: number;
+  totalSets: number;
+  highIntensitySets: number; // RIR <= 3
+  intensityPercentage: number;
+  message: string;
+}
+
+export interface MuscleGroupHighlight {
+  muscleGroup: string;
+  totalVolume: number;
+  improvement: number; // % de melhora
+  sessionsCount: number;
+}
+
+export interface CurrentPeriodization {
+  name: string;
+  currentWeek: number;
+  totalWeeks: number;
+  progressPercentage: number;
+  description?: string;
+  daysRemaining: number;
 }
 
 export class StatsService {
@@ -301,40 +334,49 @@ export class StatsService {
    */
   public async getPeriodizationExerciseProgression(
     periodizationId: string
-  ): Promise<Map<string, { dates: Date[]; maxWeights: number[]; sessionNames: string[]; muscleGroup?: string }>> {
+  ): Promise<Map<string, { dates: Date[]; maxWeights: number[]; reps: number[]; sessionNames: string[]; muscleGroup?: string }>> {
     try {
       const progressionByExercise = new Map<
         string,
-        { date: Date; maxWeight: number; sessionName: string; muscleGroup?: string }[]
+        { date: Date; maxWeight: number; reps: number; sessionName: string; muscleGroup?: string }[]
       >();
 
       // Get all sessions for this periodization
       const sessions = await storageService.getSessionsByPeriodization(periodizationId);
       
-      // Filter only completed sessions and sort by date
+      // Filter only completed sessions that are not deleted, sort by date
       const completedSessions = sessions
-        .filter(s => s.completedAt)
+        .filter(s => s.completedAt && !s.deletedAt)
         .sort((a, b) => a.completedAt!.getTime() - b.completedAt!.getTime());
 
       for (const session of completedSessions) {
         const exercises = await storageService.getExercisesBySession(session.id);
 
         for (const exercise of exercises) {
-          const sets = await storageService.getSetsByExercise(exercise.id);
-          if (sets.length === 0) continue;
+          const allSets = await storageService.getSetsByExercise(exercise.id);
+          
+          // Filter: only sets that are completed and not deleted
+          const validSets = allSets.filter(s => 
+            s.completedAt && !s.deletedAt
+          );
+          
+          if (validSets.length === 0) continue;
 
-          // Find the maximum weight among all sets in this session
-          const maxWeight = Math.max(...sets.map(s => s.weight || 0));
+          // Find the set with maximum weight
+          const maxWeightSet = validSets.reduce((max, set) => 
+            (set.weight || 0) > (max.weight || 0) ? set : max
+          );
 
           // Initialize array for this exercise if needed
           if (!progressionByExercise.has(exercise.name)) {
             progressionByExercise.set(exercise.name, []);
           }
 
-          // Add data point with muscle group
+          // Add data point with muscle group and reps
           progressionByExercise.get(exercise.name)!.push({
             date: session.completedAt!,
-            maxWeight,
+            maxWeight: maxWeightSet.weight || 0,
+            reps: maxWeightSet.repetitions || 0,
             sessionName: session.name,
             muscleGroup: exercise.muscleGroup,
           });
@@ -342,7 +384,7 @@ export class StatsService {
       }
 
       // Convert to final format
-      const result = new Map<string, { dates: Date[]; maxWeights: number[]; sessionNames: string[]; muscleGroup?: string }>();
+      const result = new Map<string, { dates: Date[]; maxWeights: number[]; reps: number[]; sessionNames: string[]; muscleGroup?: string }>();
       
       for (const [exerciseName, dataPoints] of progressionByExercise.entries()) {
         // Sort by date
@@ -351,8 +393,9 @@ export class StatsService {
         result.set(exerciseName, {
           dates: dataPoints.map(d => d.date),
           maxWeights: dataPoints.map(d => d.maxWeight),
+          reps: dataPoints.map(d => d.reps),
           sessionNames: dataPoints.map(d => d.sessionName),
-          muscleGroup: dataPoints[0]?.muscleGroup, // Use muscleGroup do primeiro exercício
+          muscleGroup: dataPoints[0]?.muscleGroup,
         });
       }
 
@@ -470,6 +513,344 @@ export class StatsService {
     } catch (error) {
       console.error('Error getting sessions by date range:', error);
       return [];
+    }
+  }
+
+  // ==============================================
+  // MOTIVATIONAL METRICS
+  // ==============================================
+
+  public async getLatestPersonalRecord(userId: string): Promise<PersonalRecord | null> {
+    try {
+      const now = new Date();
+      const periodizations = await storageService.getAllPeriodizations(userId);
+      
+      // Find current periodization (not deleted and not ended)
+      const currentPeriodization = periodizations
+        .filter(p => {
+          if (p.deletedAt) return false;
+          const endDate = p.endDate ? new Date(p.endDate) : new Date(9999, 0, 1);
+          return endDate >= now;
+        })
+        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
+      
+      if (!currentPeriodization) return null;
+      
+      const periodStartDate = new Date(currentPeriodization.startDate);
+      const periodEndDate = currentPeriodization.endDate ? new Date(currentPeriodization.endDate) : now;
+      
+      const exerciseRecords = new Map<string, { weight: number; reps: number; date: Date; previousWeight: number }>();
+
+      const sessions = await storageService.getSessionsByPeriodization(currentPeriodization.id);
+      
+      // Sort sessions by completion date and filter deleted
+      const completedSessions = sessions
+        .filter(s => s.completedAt && !s.deletedAt)
+        .sort((a, b) => new Date(a.completedAt!).getTime() - new Date(b.completedAt!).getTime());
+
+      for (const session of completedSessions) {
+        const exercises = await storageService.getExercisesBySession(session.id);
+        
+        for (const exercise of exercises) {
+          if (exercise.deletedAt) continue;
+          
+          const sets = await storageService.getSetsByExercise(exercise.id);
+          const completedSets = sets.filter(s => s.completedAt && !s.deletedAt);
+          
+          for (const set of completedSets) {
+            const key = exercise.name;
+            const existing = exerciseRecords.get(key);
+            
+            if (!existing || set.weight > existing.weight) {
+              exerciseRecords.set(key, {
+                weight: set.weight,
+                reps: set.repetitions,
+                date: set.completedAt!,
+                previousWeight: existing?.weight || 0,
+              });
+            }
+          }
+        }
+      }
+
+      // Find the most recent PR within current periodization
+      let latestPR: PersonalRecord | null = null;
+      let latestDate = new Date(0);
+
+      for (const [exerciseName, record] of exerciseRecords.entries()) {
+        const recordDate = new Date(record.date);
+        if (recordDate >= periodStartDate && recordDate <= periodEndDate && recordDate > latestDate && record.previousWeight > 0) {
+          latestDate = recordDate;
+          latestPR = {
+            exerciseName,
+            weight: record.weight,
+            reps: record.reps,
+            achievedAt: record.date,
+            improvement: record.weight - record.previousWeight,
+          };
+        }
+      }
+
+      return latestPR;
+    } catch (error) {
+      console.error('Error getting latest personal record:', error);
+      return null;
+    }
+  }
+
+  public async getTrainingIntensity(userId: string): Promise<TrainingIntensity> {
+    try {
+      const now = new Date();
+      const periodizations = await storageService.getAllPeriodizations(userId);
+      
+      // Find current periodization (not deleted and not ended)
+      const currentPeriodization = periodizations
+        .filter(p => {
+          if (p.deletedAt) return false;
+          const endDate = p.endDate ? new Date(p.endDate) : new Date(9999, 0, 1);
+          return endDate >= now;
+        })
+        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
+      
+      if (!currentPeriodization) {
+        return {
+          averageRIR: 0,
+          totalSets: 0,
+          highIntensitySets: 0,
+          intensityPercentage: 0,
+          message: 'Crie uma periodização',
+        };
+      }
+      
+      const periodStartDate = new Date(currentPeriodization.startDate);
+      const periodEndDate = currentPeriodization.endDate ? new Date(currentPeriodization.endDate) : now;
+      
+      let totalSets = 0;
+      let totalRIR = 0;
+      let setsWithRIR = 0;
+      let highIntensitySets = 0;
+
+      const sessions = await storageService.getSessionsByPeriodization(currentPeriodization.id);
+      
+      for (const session of sessions) {
+        if (!session.completedAt || session.deletedAt) continue;
+        
+        const exercises = await storageService.getExercisesBySession(session.id);
+        
+        for (const exercise of exercises) {
+          if (exercise.deletedAt) continue;
+          
+          const sets = await storageService.getSetsByExercise(exercise.id);
+          const completedSets = sets.filter(s => s.completedAt && !s.deletedAt);
+          
+          for (const set of completedSets) {
+            totalSets++;
+            if (set.rir !== undefined && set.rir !== null) {
+              totalRIR += set.rir;
+              setsWithRIR++;
+              if (set.rir <= 3) {
+                highIntensitySets++;
+              }
+            }
+          }
+        }
+      }
+
+      const averageRIR = setsWithRIR > 0 ? totalRIR / setsWithRIR : 0;
+      const intensityPercentage = setsWithRIR > 0 ? (highIntensitySets / setsWithRIR) * 100 : 0;
+
+      let message = 'Sem dados suficientes';
+      if (setsWithRIR > 0) {
+        if (averageRIR <= 2) {
+          message = 'Treinando muito pesado! 🔥';
+        } else if (averageRIR <= 3) {
+          message = 'Alta intensidade! 💪';
+        } else if (averageRIR <= 5) {
+          message = 'Intensidade moderada 👍';
+        } else {
+          message = 'Pode aumentar a intensidade 📈';
+        }
+      }
+
+      return {
+        averageRIR: Math.round(averageRIR * 10) / 10,
+        totalSets: setsWithRIR,
+        highIntensitySets,
+        intensityPercentage: Math.round(intensityPercentage),
+        message,
+      };
+    } catch (error) {
+      console.error('Error getting training intensity:', error);
+      return {
+        averageRIR: 0,
+        totalSets: 0,
+        highIntensitySets: 0,
+        intensityPercentage: 0,
+        message: 'Erro ao calcular',
+      };
+    }
+  }
+
+  public async getMuscleGroupHighlight(userId: string): Promise<MuscleGroupHighlight | null> {
+    try {
+      const now = new Date();
+      const periodizations = await storageService.getAllPeriodizations(userId);
+      
+      // Find current periodization (not deleted and not ended)
+      const currentPeriodization = periodizations
+        .filter(p => {
+          if (p.deletedAt) return false;
+          const endDate = p.endDate ? new Date(p.endDate) : new Date(9999, 0, 1);
+          return endDate >= now;
+        })
+        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
+      
+      if (!currentPeriodization) {
+        return null;
+      }
+      
+      const periodStartDate = new Date(currentPeriodization.startDate);
+      const periodEndDate = currentPeriodization.endDate ? new Date(currentPeriodization.endDate) : now;
+      
+      // Calculate midpoint for comparison
+      const periodDuration = periodEndDate.getTime() - periodStartDate.getTime();
+      const midPoint = new Date(periodStartDate.getTime() + (periodDuration / 2));
+      
+      const muscleGroupData = new Map<string, { 
+        currentVolume: number; 
+        previousVolume: number; 
+        secondHalfSessions: Set<string>; 
+        firstHalfSessions: Set<string>;
+        allSessions: Set<string>;
+      }>();
+
+      const sessions = await storageService.getSessionsByPeriodization(currentPeriodization.id);
+      
+      for (const session of sessions) {
+        if (!session.completedAt || session.deletedAt) continue;
+        
+        const completedDate = new Date(session.completedAt);
+        if (completedDate < periodStartDate || completedDate > periodEndDate) continue;
+        
+        const exercises = await storageService.getExercisesBySession(session.id);
+        
+        for (const exercise of exercises) {
+          if (!exercise.muscleGroup || exercise.deletedAt) continue;
+          
+          const sets = await storageService.getSetsByExercise(exercise.id);
+          const completedSets = sets.filter(s => s.completedAt && !s.deletedAt);
+          const volume = completedSets.reduce((sum, set) => sum + (set.weight * set.repetitions), 0);
+          
+          const key = exercise.muscleGroup;
+          const existing = muscleGroupData.get(key) || { 
+            currentVolume: 0, 
+            previousVolume: 0, 
+            secondHalfSessions: new Set<string>(),
+            firstHalfSessions: new Set<string>(),
+            allSessions: new Set<string>()
+          };
+          
+          existing.allSessions.add(session.id);
+          
+          // Second half vs first half comparison
+          if (completedDate >= midPoint) {
+            existing.currentVolume += volume;
+            existing.secondHalfSessions.add(session.id);
+          } else {
+            existing.previousVolume += volume;
+            existing.firstHalfSessions.add(session.id);
+          }
+          
+          muscleGroupData.set(key, existing);
+        }
+      }
+
+      // Find muscle group with highest improvement or highest volume
+      let bestGroup: MuscleGroupHighlight | null = null;
+      let bestImprovement = 0;
+      let bestVolume = 0;
+      let hasComparableData = false;
+
+      for (const [muscleGroup, data] of muscleGroupData.entries()) {
+        const totalVolume = data.previousVolume + data.currentVolume;
+        
+        // Check if we have data in both halves for comparison
+        if (data.previousVolume > 0 && data.currentVolume > 0) {
+          hasComparableData = true;
+          const improvement = ((data.currentVolume - data.previousVolume) / data.previousVolume) * 100;
+          
+          if (improvement > bestImprovement) {
+            bestImprovement = improvement;
+            bestGroup = {
+              muscleGroup: getMuscleGroupLabel(muscleGroup),
+              totalVolume: data.currentVolume,
+              improvement: Math.round(improvement),
+              sessionsCount: data.secondHalfSessions.size,
+            };
+          }
+        } else {
+          // If no comparable data, track highest volume group
+          if (totalVolume > bestVolume) {
+            bestVolume = totalVolume;
+            const volumeInHalf = data.currentVolume > 0 ? data.currentVolume : data.previousVolume;
+            
+            if (!hasComparableData) {
+              bestGroup = {
+                muscleGroup: getMuscleGroupLabel(muscleGroup),
+                totalVolume: volumeInHalf,
+                improvement: 0, // No comparison possible yet
+                sessionsCount: data.allSessions.size,
+              };
+            }
+          }
+        }
+      }
+
+      return bestGroup;
+    } catch (error) {
+      console.error('Error getting muscle group highlight:', error);
+      return null;
+    }
+  }
+
+  public async getCurrentPeriodization(userId: string): Promise<CurrentPeriodization | null> {
+    try {
+      const periodizations = await storageService.getAllPeriodizations(userId);
+      const now = new Date();
+
+      // Find active periodization (ongoing or most recent, not deleted)
+      const activePeriodization = periodizations
+        .filter(p => {
+          if (p.deletedAt) return false;
+          const endDate = p.endDate ? new Date(p.endDate) : new Date(9999, 0, 1);
+          return endDate >= now;
+        })
+        .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
+
+      if (!activePeriodization) return null;
+
+      const startDate = new Date(activePeriodization.startDate);
+      const endDate = activePeriodization.endDate ? new Date(activePeriodization.endDate) : now;
+      
+      const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const daysPassed = Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const daysRemaining = Math.max(0, totalDays - daysPassed);
+      
+      const totalWeeks = Math.ceil(totalDays / 7);
+      const currentWeek = Math.min(Math.ceil(daysPassed / 7), totalWeeks);
+      const progressPercentage = Math.min(Math.round((daysPassed / totalDays) * 100), 100);
+
+      return {
+        name: activePeriodization.name,
+        currentWeek,
+        totalWeeks,
+        progressPercentage,
+        description: activePeriodization.description,
+        daysRemaining,
+      };
+    } catch (error) {
+      console.error('Error getting current periodization:', error);
+      return null;
     }
   }
 }

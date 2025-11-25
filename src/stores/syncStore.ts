@@ -42,20 +42,17 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     }
 
     if (isSyncing) {
-      console.log('⚠️ Sincronização já em andamento');
       return;
     }
 
     set({ isSyncing: true, error: null });
 
     try {
-      console.log('🔄 Iniciando sincronização...');
       await syncService.syncAll(userId);
       set({ 
         lastSyncedAt: new Date(), 
         isSyncing: false 
       });
-      console.log('✅ Sincronização concluída!');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha na sincronização';
       set({ 
@@ -75,7 +72,6 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     try {
       await AsyncStorage.setItem(AUTO_SYNC_CONFIG_KEY, JSON.stringify(config));
       set({ autoSyncConfig: config });
-      console.log('💾 Configuração de auto-sync salva:', config);
     } catch (error) {
       console.error('❌ Erro ao salvar configuração de auto-sync:', error);
     }
@@ -87,7 +83,6 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       if (saved) {
         const config = JSON.parse(saved);
         set({ autoSyncConfig: config });
-        console.log('📂 Configuração de auto-sync carregada:', config);
       }
     } catch (error) {
       console.error('❌ Erro ao carregar configuração de auto-sync:', error);

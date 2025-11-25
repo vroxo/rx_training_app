@@ -29,7 +29,6 @@ export class StorageService {
 
   // Initialize storage (no-op for AsyncStorage)
   public async init(): Promise<void> {
-    console.log('✅ Storage initialized (AsyncStorage)');
   }
 
   // ==============================================
@@ -93,7 +92,6 @@ export class StorageService {
 
   public async deletePeriodization(id: string): Promise<void> {
     const deletedAt = new Date();
-    console.log('🗑️ [STORAGE] Marking periodization as deleted:', {
       id,
       deletedAt,
       deletedAtISO: deletedAt.toISOString(),
@@ -106,7 +104,6 @@ export class StorageService {
     
     // Verify the update
     const updated = await this.getPeriodizationByIdIncludingDeleted(id);
-    console.log('✅ [STORAGE] Verification after delete:', {
       id: updated?.id,
       name: updated?.name,
       deletedAt: updated?.deletedAt,
@@ -335,7 +332,6 @@ export class StorageService {
       // Check if item with this ID already exists
       const existingIndex = all.findIndex(existing => existing.id === item.id);
       if (existingIndex !== -1) {
-        console.warn(`⚠️ [STORAGE] Item with id ${item.id} already exists in ${key}. Replacing it.`);
         all[existingIndex] = item;
       } else {
         all.push(item);
@@ -479,7 +475,6 @@ export class StorageService {
    * Duplicates a session with all its exercises and sets
    */
   public async duplicateSession(sessionId: string): Promise<Session> {
-    console.log('🔄 [DUPLICATE] Starting session duplication:', sessionId);
     const originalSession = await this.getSessionById(sessionId);
     if (!originalSession) {
       throw new Error(`Session with id ${sessionId} not found`);
@@ -487,7 +482,6 @@ export class StorageService {
 
     // Get all exercises from the original session
     const originalExercises = await this.getExercisesBySession(sessionId);
-    console.log('📋 [DUPLICATE] Found exercises:', originalExercises.length);
 
     // Create duplicate session (without "(cópia)" in the name)
     // Explicitly omit fields that should not be copied
@@ -502,7 +496,6 @@ export class StorageService {
     };
 
     const newSession = await this.createSession(duplicateSession);
-    console.log('✅ [DUPLICATE] New session created:', newSession.id);
 
     // Duplicate all exercises and their sets
     for (const originalExercise of originalExercises) {
@@ -519,11 +512,9 @@ export class StorageService {
       delete duplicateExercise.id; // Force remove id if it exists
       
       const newExercise = await this.createExercise(duplicateExercise);
-      console.log('  ✅ [DUPLICATE] Exercise duplicated:', newExercise.id, '-', newExercise.name, '(original:', originalExercise.id, ')');
 
       // Get and duplicate all sets for this exercise
       const originalSets = await this.getSetsByExercise(originalExercise.id);
-      console.log('    📊 [DUPLICATE] Duplicating', originalSets.length, 'sets for exercise');
       
       for (const originalSet of originalSets) {
         // Explicitly omit fields that should not be copied
@@ -538,11 +529,9 @@ export class StorageService {
         delete duplicateSet.id; // Force remove id if it exists
         
         const newSet = await this.createSet(duplicateSet);
-        console.log('      ✅ [DUPLICATE] Set duplicated:', newSet.id, '-', newSet.weight, 'kg x', newSet.repetitions, '(original:', originalSet.id, ')');
       }
     }
 
-    console.log('🎉 [DUPLICATE] Session duplication completed! New session ID:', newSession.id);
     return newSession;
   }
 }

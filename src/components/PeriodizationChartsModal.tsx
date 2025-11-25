@@ -34,7 +34,7 @@ export function PeriodizationChartsModal({
   const colors = getThemeColors(isDark);
   const [loading, setLoading] = useState(true);
   const [progressionData, setProgressionData] = useState<
-    Map<string, { dates: Date[]; maxWeights: number[]; sessionNames: string[]; muscleGroup?: string }>
+    Map<string, { dates: Date[]; maxWeights: number[]; reps: number[]; sessionNames: string[]; muscleGroup?: string }>
   >(new Map());
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>('all');
 
@@ -66,7 +66,7 @@ export function PeriodizationChartsModal({
     }
 
     // Filtra apenas os exercícios do grupo muscular selecionado
-    const filtered = new Map<string, { dates: Date[]; maxWeights: number[]; sessionNames: string[]; muscleGroup?: string }>();
+    const filtered = new Map<string, { dates: Date[]; maxWeights: number[]; reps: number[]; sessionNames: string[]; muscleGroup?: string }>();
     
     for (const [exerciseName, data] of progressionData.entries()) {
       if (data.muscleGroup === selectedMuscleGroup) {
@@ -177,6 +177,7 @@ export function PeriodizationChartsModal({
                   <VolumeChart
                     dates={data.dates}
                     values={data.maxWeights}
+                    reps={data.reps}
                     yAxisLabel="Carga Máxima (kg)"
                   />
 

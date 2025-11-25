@@ -23,12 +23,10 @@ export function useNetworkSync() {
       if (!wasOfflineRef.current && !isOnline) {
         // Just went offline
         wasOfflineRef.current = true;
-        console.log('📡 [NETWORK] Você está offline. Dados serão salvos localmente.');
         toast.info('Você está offline. Dados serão salvos localmente.');
       } else if (wasOfflineRef.current && isOnline) {
         // Just went back online
         wasOfflineRef.current = false;
-        console.log('📡 [NETWORK] Você voltou a ficar online! Sincronizando...');
         toast.success('Você está online! Sincronizando dados...');
         
         // Trigger sync if user is logged in

@@ -1,7 +1,8 @@
 -- =====================================================
 -- RX TRAINING APP - SUPABASE DATABASE SCHEMA
 -- =====================================================
--- Execute este arquivo no SQL Editor do Supabase
+-- Initial schema migration
+-- Consolidates all table creation, constraints, and policies
 -- =====================================================
 
 -- Enable UUID extension
@@ -51,11 +52,32 @@ CREATE TABLE IF NOT EXISTS exercises (
   equipment TEXT,
   notes TEXT,
   order_index INTEGER DEFAULT 0 NOT NULL,
-  completed_at TIMESTAMPTZ, -- when the exercise was completed during training
+  completed_at TIMESTAMPTZ,
+  conjugated_group UUID,
+  conjugated_order INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   deleted_at TIMESTAMPTZ,
-  synced_at TIMESTAMPTZ
+  synced_at TIMESTAMPTZ,
+  CONSTRAINT exercises_conjugated_order_positive CHECK (conjugated_order IS NULL OR conjugated_order > 0),
+  CONSTRAINT exercises_muscle_group_check CHECK (
+    muscle_group IS NULL OR
+    muscle_group IN (
+      'peito',
+      'costas',
+      'ombros',
+      'biceps',
+      'triceps',
+      'antebraco',
+      'abdomen',
+      'quadriceps',
+      'posterior',
+      'gluteos',
+      'panturrilha',
+      'trapezio',
+      'lombar'
+    )
+  )
 );
 
 -- Sets Table
@@ -67,16 +89,24 @@ CREATE TABLE IF NOT EXISTS sets (
   repetitions INTEGER NOT NULL,
   weight DECIMAL(10, 2) NOT NULL,
   technique TEXT,
-  set_type TEXT CHECK (set_type IN ('warmup', 'feeder', 'workset', 'backoff')),
-  rest_time INTEGER, -- seconds
-  rir INTEGER, -- Reps in Reserve
-  rpe INTEGER, -- Rate of Perceived Exertion (1-10)
+  set_type TEXT,
+  rest_time INTEGER,
+  rir INTEGER,
+  rpe INTEGER,
   notes TEXT,
-  completed_at TIMESTAMPTZ, -- when the set was completed during training
+  completed_at TIMESTAMPTZ,
+  drop_set_weights DECIMAL[],
+  drop_set_reps JSONB,
+  rest_pause_duration INTEGER,
+  rest_pause_reps INTEGER[],
+  cluster_reps INTEGER,
+  cluster_rest_duration INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   deleted_at TIMESTAMPTZ,
-  synced_at TIMESTAMPTZ
+  synced_at TIMESTAMPTZ,
+  CONSTRAINT sets_set_type_check CHECK (set_type IS NULL OR set_type IN ('warmup', 'feeder', 'workset', 'backoff')),
+  CONSTRAINT sets_technique_check CHECK (technique IS NULL OR technique IN ('standard', 'dropset', 'restpause', 'clusterset'))
 );
 
 -- Sync Queue Table (for tracking pending changes)
@@ -90,6 +120,24 @@ CREATE TABLE IF NOT EXISTS sync_queue (
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   synced BOOLEAN DEFAULT FALSE NOT NULL
 );
+
+-- =====================================================
+-- COMMENTS
+-- =====================================================
+
+COMMENT ON COLUMN exercises.completed_at IS 'Timestamp when the exercise was completed during training';
+COMMENT ON COLUMN exercises.conjugated_group IS 'UUID that groups exercises together for conjugated sets (Biset, Triset, etc.). All exercises with the same conjugated_group are executed in sequence.';
+COMMENT ON COLUMN exercises.conjugated_order IS 'Order of execution within a conjugated group (1, 2, 3...). Only relevant when conjugated_group is set.';
+COMMENT ON CONSTRAINT exercises_muscle_group_check ON exercises IS 'Validates that muscle_group contains only predefined values from MUSCLE_GROUPS constant';
+
+COMMENT ON COLUMN sets.completed_at IS 'Timestamp when the set was completed during training';
+COMMENT ON COLUMN sets.set_type IS 'Type of set: warmup (warm-up set), feeder (feeder set), workset (work set), backoff (backoff set). NULL means unspecified type.';
+COMMENT ON COLUMN sets.drop_set_weights IS 'Array of weights for each drop in a drop set';
+COMMENT ON COLUMN sets.drop_set_reps IS 'Array of repetitions for each drop in a drop set (stored as JSONB array)';
+COMMENT ON COLUMN sets.rest_pause_duration IS 'Rest duration in seconds for rest-pause technique (5-60s)';
+COMMENT ON COLUMN sets.rest_pause_reps IS 'Array of reps for each round in rest-pause technique (e.g., [10, 3, 2])';
+COMMENT ON COLUMN sets.cluster_reps IS 'Number of reps per mini-set in cluster technique';
+COMMENT ON COLUMN sets.cluster_rest_duration IS 'Rest duration in seconds between clusters (5-60s)';
 
 -- =====================================================
 -- INDEXES for better query performance
@@ -106,10 +154,14 @@ CREATE INDEX IF NOT EXISTS idx_sessions_deleted_at ON sessions(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_exercises_user_id ON exercises(user_id);
 CREATE INDEX IF NOT EXISTS idx_exercises_session_id ON exercises(session_id);
 CREATE INDEX IF NOT EXISTS idx_exercises_deleted_at ON exercises(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_exercises_completed_at ON exercises(completed_at);
+CREATE INDEX IF NOT EXISTS idx_exercises_conjugated_group ON exercises(conjugated_group) WHERE conjugated_group IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_sets_user_id ON sets(user_id);
 CREATE INDEX IF NOT EXISTS idx_sets_exercise_id ON sets(exercise_id);
 CREATE INDEX IF NOT EXISTS idx_sets_deleted_at ON sets(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_sets_completed_at ON sets(completed_at);
+CREATE INDEX IF NOT EXISTS idx_sets_set_type ON sets(set_type) WHERE set_type IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_sync_queue_user_id ON sync_queue(user_id);
 CREATE INDEX IF NOT EXISTS idx_sync_queue_synced ON sync_queue(synced);
@@ -248,9 +300,6 @@ CREATE TRIGGER update_sets_updated_at
 -- COMPLETED!
 -- =====================================================
 -- Schema created successfully
--- Next steps:
--- 1. Verify all tables were created
--- 2. Test RLS policies
--- 3. Create initial test data (optional)
+-- All migrations consolidated into single initial schema
 -- =====================================================
 

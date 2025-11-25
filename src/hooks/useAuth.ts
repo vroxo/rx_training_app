@@ -5,6 +5,7 @@ export function useAuth() {
   const {
     user,
     isLoading,
+    isInitializing,
     isAuthenticated,
     error,
     signIn,
@@ -22,11 +23,12 @@ export function useAuth() {
       hasInitialized.current = true;
       restoreSession();
     }
-  }, [restoreSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
   
   return {
     user,
-    isLoading,
+    isLoading: isLoading || isInitializing,
     isAuthenticated,
     error,
     signIn,

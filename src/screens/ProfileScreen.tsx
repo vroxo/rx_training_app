@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button, ThemeToggle } from '../components';
 import { useTheme } from '../contexts/ThemeContext';
@@ -38,16 +38,40 @@ export function ProfileScreen() {
   }, [autoSyncConfig]);
 
   const handleSignOut = async () => {
-    const confirmed = window.confirm('Tem certeza que deseja sair?');
-    if (!confirmed) return;
-    
+    Alert.alert(
+      'Sair',
+      'Tem certeza que deseja sair?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+              haptic.success();
+              toast.success('Logout realizado com sucesso');
+            } catch (error) {
+              haptic.error();
+              toast.error('Erro ao sair. Tente novamente.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleManualSync = async () => {
     try {
-      await signOut();
+      await sync();
       haptic.success();
-      toast.success('Logout realizado com sucesso');
+      toast.success('Sincronização concluída!');
     } catch (error) {
       haptic.error();
-      toast.error('Erro ao sair. Tente novamente.');
+      toast.error('Erro ao sincronizar. Tente novamente.');
     }
   };
 

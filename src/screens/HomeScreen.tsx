@@ -2,55 +2,63 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, WeekFrequency, RecentSessionsList } from '../components';
+import { Card, WeekFrequency } from '../components';
 import { useTheme } from '../contexts/ThemeContext';
 import { getThemeColors, SPACING, TYPOGRAPHY } from '../constants/theme';
 import { useAuth } from '../hooks';
-import { statsService, DashboardStats } from '../services/stats';
+import { 
+  statsService, 
+  DashboardStats, 
+  PersonalRecord, 
+  TrainingIntensity, 
+  MuscleGroupHighlight, 
+  CurrentPeriodization 
+} from '../services/stats';
 import type { Session } from '../models';
-import { startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isToday, isPast } from 'date-fns';
+import { startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isToday, isPast, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useSyncStore } from '../stores/syncStore';
 
 export function HomeScreen() {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const colors = getThemeColors(isDark);
-  const { lastSyncedAt } = useSyncStore();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [recentSessions, setRecentSessions] = useState<Session[]>([]);
   const [weekSessions, setWeekSessions] = useState<Session[]>([]);
+  const [personalRecord, setPersonalRecord] = useState<PersonalRecord | null>(null);
+  const [intensity, setIntensity] = useState<TrainingIntensity | null>(null);
+  const [muscleHighlight, setMuscleHighlight] = useState<MuscleGroupHighlight | null>(null);
+  const [currentPeriodization, setCurrentPeriodization] = useState<CurrentPeriodization | null>(null);
 
   // Reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       if (user) {
         loadStats();
-        loadRecentSessions();
         loadWeekSessions();
       }
     }, [user])
   );
-
-  // Reload data when sync completes
-  useEffect(() => {
-    if (user && lastSyncedAt) {
-      console.log('🔄 [HOME] Recarregando dados após sync em:', lastSyncedAt);
-      loadStats();
-      loadRecentSessions();
-      loadWeekSessions();
-    }
-  }, [lastSyncedAt, user]);
 
   const loadStats = async () => {
     if (!user) return;
     
     try {
       setLoading(true);
-      const data = await statsService.getDashboardStats(user.id);
+      const [data, pr, intensityData, muscleData, periodData] = await Promise.all([
+        statsService.getDashboardStats(user.id),
+        statsService.getLatestPersonalRecord(user.id),
+        statsService.getTrainingIntensity(user.id),
+        statsService.getMuscleGroupHighlight(user.id),
+        statsService.getCurrentPeriodization(user.id),
+      ]);
+      
       setStats(data);
+      setPersonalRecord(pr);
+      setIntensity(intensityData);
+      setMuscleHighlight(muscleData);
+      setCurrentPeriodization(periodData);
     } catch (error) {
       console.error('Error loading stats:', error);
     } finally {
@@ -73,21 +81,9 @@ export function HomeScreen() {
     }
   };
 
-  const loadRecentSessions = async () => {
-    if (!user) return;
-    
-    try {
-      const sessions = await statsService.getRecentSessions(user.id, 5);
-      setRecentSessions(sessions);
-    } catch (error) {
-      console.error('Error loading recent sessions:', error);
-    }
-  };
-
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadStats();
-    await loadRecentSessions();
     await loadWeekSessions();
     setRefreshing(false);
   };
@@ -146,64 +142,143 @@ export function HomeScreen() {
         Bem-vindo, {user?.email || 'Atleta'}!
       </Text>
 
-      {/* Stats Cards */}
+      {/* Motivational Stats Cards */}
       <View style={styles.statsGrid}>
+        {/* Personal Record */}
         <Card style={[styles.statCard, { backgroundColor: colors.background.secondary, borderColor: colors.border }]}>
-          <Ionicons name="barbell" size={32} color={colors.primary} />
-          <Text style={[styles.statValue, { color: colors.text.primary }]}>
-            {stats?.totalSessions || 0}
-          </Text>
-          <Text style={[styles.statLabel, { color: colors.text.secondary }]}>
-            Treinos
-          </Text>
+          <View style={styles.cardHeader}>
+            <Ionicons name="trophy" size={24} color={colors.primary} />
+            <Text style={[styles.cardTitle, { color: colors.text.secondary }]}>RECORDE PESSOAL</Text>
+          </View>
+          {personalRecord ? (
+            <>
+              <Text style={[styles.statValue, { color: colors.text.primary }]}>
+                {personalRecord.weight}kg
+              </Text>
+              <Text style={[styles.exerciseName, { color: colors.text.primary }]} numberOfLines={1}>
+                {personalRecord.exerciseName}
+              </Text>
+              <Text style={[styles.improvement, { color: colors.success }]}>
+                ↑ +{personalRecord.improvement}kg
+              </Text>
+            </>
+          ) : (
+            <Text style={[styles.noDataText, { color: colors.text.tertiary }]}>
+              Nenhum recorde nesta periodização
+            </Text>
+          )}
         </Card>
 
+        {/* Training Intensity */}
         <Card style={[styles.statCard, { backgroundColor: colors.background.secondary, borderColor: colors.border }]}>
-          <Ionicons name="flame" size={32} color={colors.primary} />
-          <Text style={[styles.statValue, { color: colors.text.primary }]}>
-            {stats?.totalExercises || 0}
-          </Text>
-          <Text style={[styles.statLabel, { color: colors.text.secondary }]}>
-            Exercícios
-          </Text>
-        </Card>
-
-        <Card style={[styles.statCard, { backgroundColor: colors.background.secondary, borderColor: colors.border }]}>
-          <Ionicons name="fitness" size={32} color={colors.primary} />
-          <Text style={[styles.statValue, { color: colors.text.primary }]}>
-            {stats?.totalSets || 0}
-          </Text>
-          <Text style={[styles.statLabel, { color: colors.text.secondary }]}>
-            Volume
-          </Text>
-        </Card>
-
-        <Card style={[styles.statCard, { backgroundColor: colors.background.secondary, borderColor: colors.border }]}>
-          <Ionicons name="analytics" size={32} color={colors.primary} />
-          <Text style={[styles.statValue, { color: colors.text.primary }]}>
-            {(stats?.totalVolume || 0).toLocaleString('pt-BR')}kg
-          </Text>
-          <Text style={[styles.statLabel, { color: colors.text.secondary }]}>
-            Carga Total
-          </Text>
+          <View style={styles.cardHeader}>
+            <Ionicons name="flash" size={24} color={colors.primary} />
+            <Text style={[styles.cardTitle, { color: colors.text.secondary }]}>INTENSIDADE</Text>
+          </View>
+          {intensity && intensity.totalSets > 0 ? (
+            <>
+              <Text style={[styles.statValue, { color: colors.text.primary }]}>
+                RIR {intensity.averageRIR}
+              </Text>
+              <Text style={[styles.intensityMessage, { color: colors.primary }]}>
+                {intensity.message}
+              </Text>
+            </>
+          ) : (
+            <Text style={[styles.noDataText, { color: colors.text.tertiary }]}>
+              Complete treinos com RIR
+            </Text>
+          )}
         </Card>
       </View>
+
+      {/* Muscle Group Highlight - Full Width */}
+      <Card style={[styles.statCardFullWidth, { backgroundColor: colors.background.secondary, borderColor: colors.border }]}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="fitness" size={24} color={colors.primary} />
+          <Text style={[styles.cardTitle, { color: colors.text.secondary }]}>GRUPO DESTAQUE</Text>
+        </View>
+        {muscleHighlight ? (
+          <>
+            <Text style={[styles.statValue, { color: colors.text.primary }]}>
+              {muscleHighlight.muscleGroup}
+            </Text>
+            {muscleHighlight.improvement > 0 ? (
+              <Text style={[styles.improvement, { color: colors.success }]}>
+                ↑ +{muscleHighlight.improvement}%
+              </Text>
+            ) : (
+              <Text style={[styles.statHint, { color: colors.text.tertiary }]}>
+                Mais treinado até agora
+              </Text>
+            )}
+          </>
+        ) : (
+          <Text style={[styles.noDataText, { color: colors.text.tertiary }]}>
+            Complete mais treinos
+          </Text>
+        )}
+      </Card>
 
       {/* Week Frequency */}
       <Card style={[styles.weekCard, { backgroundColor: colors.background.secondary, borderColor: colors.border }]}>
         <WeekFrequency weekData={getWeekData()} />
       </Card>
 
-      {/* Recent Sessions */}
-      <Card style={[styles.recentSessionsCard, { backgroundColor: colors.background.secondary, borderColor: colors.border }]}>
-        <View style={styles.chartTitleRow}>
-          <Ionicons name="calendar" size={24} color={colors.primary} />
-          <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>
-            Sessões Recentes
+      {/* Periodization Detail Card */}
+      {currentPeriodization && (
+        <Card style={[styles.periodizationDetailCard, { backgroundColor: colors.background.secondary, borderColor: colors.border }]}>
+          <View style={styles.chartTitleRow}>
+            <Ionicons name="calendar-outline" size={24} color={colors.primary} />
+            <Text style={[styles.sectionTitle, { color: colors.text.primary }]}>
+              Periodização Atual
+            </Text>
+          </View>
+          
+          <Text style={[styles.periodizationDetailName, { color: colors.text.primary }]}>
+            {currentPeriodization.name}
           </Text>
-        </View>
-        <RecentSessionsList sessions={recentSessions} />
-      </Card>
+          
+          {currentPeriodization.description && (
+            <Text style={[styles.periodizationDescription, { color: colors.text.secondary }]}>
+              {currentPeriodization.description}
+            </Text>
+          )}
+          
+          <View style={styles.periodizationStats}>
+            <View style={styles.periodizationStatItem}>
+              <Text style={[styles.periodizationStatLabel, { color: colors.text.secondary }]}>Semana</Text>
+              <Text style={[styles.periodizationStatValue, { color: colors.primary }]}>
+                {currentPeriodization.currentWeek}/{currentPeriodization.totalWeeks}
+              </Text>
+            </View>
+            <View style={styles.periodizationStatItem}>
+              <Text style={[styles.periodizationStatLabel, { color: colors.text.secondary }]}>Progresso</Text>
+              <Text style={[styles.periodizationStatValue, { color: colors.primary }]}>
+                {currentPeriodization.progressPercentage}%
+              </Text>
+            </View>
+            <View style={styles.periodizationStatItem}>
+              <Text style={[styles.periodizationStatLabel, { color: colors.text.secondary }]}>Restam</Text>
+              <Text style={[styles.periodizationStatValue, { color: colors.primary }]}>
+                {currentPeriodization.daysRemaining} dias
+              </Text>
+            </View>
+          </View>
+          
+          <View style={[styles.progressBarLarge, { backgroundColor: colors.background.primary }]}>
+            <View 
+              style={[
+                styles.progressFill, 
+                { 
+                  backgroundColor: colors.primary,
+                  width: `${currentPeriodization.progressPercentage}%`
+                }
+              ]} 
+            />
+          </View>
+        </Card>
+      )}
     </ScrollView>
   );
 }
@@ -233,7 +308,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.md,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   statCard: {
     flex: 1,
@@ -243,10 +318,78 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
+  statCardFullWidth: {
+    width: '100%',
+    padding: SPACING.md,
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: SPACING.md,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: SPACING.sm,
+  },
+  cardTitle: {
+    fontSize: TYPOGRAPHY.size.xs,
+    fontWeight: TYPOGRAPHY.weight.semibold as any,
+    letterSpacing: 0.5,
+  },
   statValue: {
     fontSize: TYPOGRAPHY.size['2xl'],
     fontWeight: TYPOGRAPHY.weight.bold as any,
-    marginTop: SPACING.sm,
+    marginTop: SPACING.xs,
+    marginBottom: SPACING.xs,
+  },
+  exerciseName: {
+    fontSize: TYPOGRAPHY.size.sm,
+    fontWeight: TYPOGRAPHY.weight.medium as any,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
+  },
+  improvement: {
+    fontSize: TYPOGRAPHY.size.base,
+    fontWeight: TYPOGRAPHY.weight.semibold as any,
+    marginBottom: SPACING.xs,
+  },
+  intensityMessage: {
+    fontSize: TYPOGRAPHY.size.sm,
+    fontWeight: TYPOGRAPHY.weight.medium as any,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
+  },
+  periodizationName: {
+    fontSize: TYPOGRAPHY.size.base,
+    fontWeight: TYPOGRAPHY.weight.semibold as any,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
+  },
+  weekProgress: {
+    fontSize: TYPOGRAPHY.size.sm,
+    fontWeight: TYPOGRAPHY.weight.medium as any,
+    marginBottom: SPACING.sm,
+  },
+  progressBar: {
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: SPACING.xs,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  statHint: {
+    fontSize: TYPOGRAPHY.size.xs,
+    textAlign: 'center',
+  },
+  noDataText: {
+    fontSize: TYPOGRAPHY.size.sm,
+    textAlign: 'center',
+    marginTop: SPACING.md,
   },
   statLabel: {
     fontSize: TYPOGRAPHY.size.sm,
@@ -254,15 +397,47 @@ const styles = StyleSheet.create({
   },
   weekCard: {
     padding: SPACING.sm,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.md,
     borderRadius: 12,
     borderWidth: 1,
   },
-  recentSessionsCard: {
+  periodizationDetailCard: {
     padding: SPACING.md,
     marginBottom: SPACING.md,
     borderRadius: 12,
     borderWidth: 1,
+  },
+  periodizationDetailName: {
+    fontSize: TYPOGRAPHY.size.xl,
+    fontWeight: TYPOGRAPHY.weight.bold as any,
+    marginBottom: SPACING.sm,
+  },
+  periodizationDescription: {
+    fontSize: TYPOGRAPHY.size.sm,
+    marginBottom: SPACING.md,
+    lineHeight: 20,
+  },
+  periodizationStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: SPACING.md,
+  },
+  periodizationStatItem: {
+    alignItems: 'center',
+  },
+  periodizationStatLabel: {
+    fontSize: TYPOGRAPHY.size.xs,
+    marginBottom: SPACING.xs,
+  },
+  periodizationStatValue: {
+    fontSize: TYPOGRAPHY.size.lg,
+    fontWeight: TYPOGRAPHY.weight.semibold as any,
+  },
+  progressBarLarge: {
+    width: '100%',
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
   },
   chartCard: {
     padding: SPACING.md,

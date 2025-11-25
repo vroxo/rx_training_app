@@ -31,15 +31,10 @@ export class SyncService {
         return await operation();
       } catch (error) {
         lastError = error as Error;
-        console.warn(
-          `⚠️ [Retry ${attempt}/${this.MAX_RETRIES}] ${operationName} failed:`,
-          error
-        );
 
         if (attempt < this.MAX_RETRIES) {
           // Exponential backoff: 1s, 2s, 4s
           const delay = this.RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-          console.log(`⏳ Waiting ${delay}ms before retry...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
@@ -55,35 +50,27 @@ export class SyncService {
   // ==============================================
 
   public async syncAll(userId: string): Promise<void> {
-    console.log('🔄 Starting full sync for user:', userId);
-
     try {
       // Sync in order with retry logic: Periodizations → Sessions → Exercises → Sets
-      console.log('📋 STEP 1/4: Syncing periodizations...');
       await this.withRetry(
         () => this.syncPeriodizations(userId),
         'Sync Periodizations'
       );
       
-      console.log('💪 STEP 2/4: Syncing sessions...');
       await this.withRetry(
         () => this.syncSessions(userId),
         'Sync Sessions'
       );
       
-      console.log('🏋️ STEP 3/4: Syncing exercises...');
       await this.withRetry(
         () => this.syncExercises(userId),
         'Sync Exercises'
       );
       
-      console.log('📊 STEP 4/4: Syncing sets...');
       await this.withRetry(
         () => this.syncSets(userId),
         'Sync Sets'
       );
-
-      console.log('✅ Full sync completed successfully!');
     } catch (error) {
       console.error('❌ Sync failed after all retries:', error);
       throw error;
@@ -95,8 +82,6 @@ export class SyncService {
   // ==============================================
 
   private async syncPeriodizations(userId: string): Promise<void> {
-    console.log('📋 Syncing periodizations...');
-
     // 1. Push local changes to Supabase
     await this.pushPeriodizations(userId);
 
@@ -109,23 +94,11 @@ export class SyncService {
     const localPeriodizations = await storageService.getAllPeriodizationsIncludingDeleted(userId);
     const needsSync = localPeriodizations.filter(p => p.needsSync);
 
-    if (needsSync.length === 0) {
-      console.log('✅ No periodizations to push');
-      return;
-    }
-
-    console.log(`📤 Pushing ${needsSync.length} periodizations...`);
+    if (needsSync.length === 0) return;
 
     for (const periodization of needsSync) {
       try {
         const syncedAt = new Date();
-        
-        console.log('🔍 [DEBUG] Pushing periodization:', {
-          id: periodization.id,
-          name: periodization.name,
-          deletedAt: periodization.deletedAt,
-          deletedAtISO: periodization.deletedAt?.toISOString(),
-        });
         
         // Always use upsert, including deleted items (soft delete)
         const payload = {
@@ -137,31 +110,21 @@ export class SyncService {
           end_date: periodization.endDate.toISOString(),
           created_at: periodization.createdAt.toISOString(),
           updated_at: periodization.updatedAt.toISOString(),
-          deleted_at: periodization.deletedAt?.toISOString() || null, // ✅ Soft delete!
+          deleted_at: periodization.deletedAt?.toISOString() || null,
           synced_at: syncedAt.toISOString(),
         };
-        
-        console.log('📤 [DEBUG] Payload to Supabase:', payload);
         
         const { error } = await supabase
           .from('periodizations')
           .upsert(payload);
 
-        if (error) {
-          console.error('❌ [DEBUG] Supabase error:', error);
-          throw error;
-        }
-        
-        console.log('✅ [DEBUG] Push successful!');
-
+        if (error) throw error;
         
         // Update local with same timestamp
         await storageService.updatePeriodization(periodization.id, {
           needsSync: false,
           syncedAt: syncedAt,
         });
-
-        console.log(`✅ Synced: ${periodization.name}`);
       } catch (error) {
         console.error(`❌ Failed to push periodization ${periodization.id}:`, error);
       }
@@ -175,12 +138,7 @@ export class SyncService {
       .eq('user_id', userId);
 
     if (error) throw error;
-    if (!data || data.length === 0) {
-      console.log('✅ No remote periodizations to pull');
-      return;
-    }
-
-    console.log(`📥 Pulling ${data.length} periodizations...`);
+    if (!data || data.length === 0) return;
 
     for (const remote of data) {
       try {
@@ -188,10 +146,7 @@ export class SyncService {
         const local = await storageService.getPeriodizationByIdIncludingDeleted(remote.id);
 
         // Skip if locally deleted (soft delete)
-        if (local?.deletedAt) {
-          console.log(`⏭️ Skipping locally deleted periodization: ${remote.name}`);
-          continue;
-        }
+        if (local?.deletedAt) continue;
 
         // If doesn't exist locally, create it
         if (!local) {
@@ -202,11 +157,10 @@ export class SyncService {
             description: remote.description,
             startDate: new Date(remote.start_date),
             endDate: new Date(remote.end_date),
-            deletedAt: remote.deleted_at ? new Date(remote.deleted_at) : undefined, // ✅ Pull deleted_at
+            deletedAt: remote.deleted_at ? new Date(remote.deleted_at) : undefined,
             syncedAt: new Date(),
             needsSync: false,
           });
-          console.log(`✅ Pulled new periodization: ${remote.name}${remote.deleted_at ? ' (deleted)' : ''}`);
           continue;
         }
 
@@ -223,7 +177,6 @@ export class SyncService {
             syncedAt: new Date(),
             needsSync: false,
           });
-          console.log(`✅ Updated periodization from remote: ${remote.name}${remote.deleted_at ? ' (deleted)' : ''}`);
         }
       } catch (error) {
         console.error(`❌ Failed to pull periodization ${remote.id}:`, error);
@@ -236,8 +189,6 @@ export class SyncService {
   // ==============================================
 
   private async syncSessions(userId: string): Promise<void> {
-    console.log('💪 Syncing sessions...');
-
     await this.pushSessions(userId);
     await this.pullSessions(userId);
   }
@@ -289,12 +240,6 @@ export class SyncService {
         }
       }
     }
-    
-    if (syncedCount > 0) {
-      console.log(`✅ Synced ${syncedCount} sessions`);
-    } else {
-      console.log('✅ No sessions to push');
-    }
   }
 
   private async pullSessions(userId: string): Promise<void> {
@@ -310,12 +255,7 @@ export class SyncService {
       .in('periodization_id', periodizationIds);
 
     if (error) throw error;
-    if (!data || data.length === 0) {
-      console.log('✅ No remote sessions to pull');
-      return;
-    }
-
-    console.log(`📥 Pulling ${data.length} sessions...`);
+    if (!data || data.length === 0) return;
 
     for (const remote of data) {
       try {
@@ -323,10 +263,7 @@ export class SyncService {
         const local = await storageService.getSessionByIdIncludingDeleted(remote.id);
 
         // Skip if locally deleted (soft delete)
-        if (local?.deletedAt) {
-          console.log(`⏭️ Skipping locally deleted session: ${remote.name}`);
-          continue;
-        }
+        if (local?.deletedAt) continue;
 
         if (!local) {
           await storageService.createSession({
@@ -340,7 +277,6 @@ export class SyncService {
             syncedAt: new Date(),
             needsSync: false,
           });
-          console.log(`✅ Pulled new session: ${remote.name}${remote.deleted_at ? ' (deleted)' : ''}`);
           continue;
         }
 
@@ -356,7 +292,6 @@ export class SyncService {
             syncedAt: new Date(),
             needsSync: false,
           });
-          console.log(`✅ Updated session from remote: ${remote.name}${remote.deleted_at ? ' (deleted)' : ''}`);
         }
       } catch (error) {
         console.error(`❌ Failed to pull session ${remote.id}:`, error);
@@ -369,8 +304,6 @@ export class SyncService {
   // ==============================================
 
   private async syncExercises(userId: string): Promise<void> {
-    console.log('🏋️ Syncing exercises...');
-
     await this.pushExercises(userId);
     await this.pullExercises(userId);
   }
@@ -429,12 +362,6 @@ export class SyncService {
         }
       }
     }
-    
-    if (syncedCount > 0) {
-      console.log(`✅ Synced ${syncedCount} exercises`);
-    } else {
-      console.log('✅ No exercises to push');
-    }
   }
 
   private async pullExercises(userId: string): Promise<void> {
@@ -455,12 +382,7 @@ export class SyncService {
       .in('session_id', sessionIds);
 
     if (error) throw error;
-    if (!data || data.length === 0) {
-      console.log('✅ No remote exercises to pull');
-      return;
-    }
-
-    console.log(`📥 Pulling ${data.length} exercises...`);
+    if (!data || data.length === 0) return;
 
     for (const remote of data) {
       try {
@@ -468,10 +390,7 @@ export class SyncService {
         const local = await storageService.getExerciseByIdIncludingDeleted(remote.id);
 
         // Skip if locally deleted (soft delete)
-        if (local?.deletedAt) {
-          console.log(`⏭️ Skipping locally deleted exercise: ${remote.name}`);
-          continue;
-        }
+        if (local?.deletedAt) continue;
 
         if (!local) {
           await storageService.createExercise({
@@ -489,7 +408,6 @@ export class SyncService {
             syncedAt: new Date(),
             needsSync: false,
           });
-          console.log(`✅ Pulled new exercise: ${remote.name}${remote.deleted_at ? ' (deleted)' : ''}`);
           continue;
         }
 
@@ -509,7 +427,6 @@ export class SyncService {
             syncedAt: new Date(),
             needsSync: false,
           });
-          console.log(`✅ Updated exercise from remote: ${remote.name}${remote.deleted_at ? ' (deleted)' : ''}`);
         }
       } catch (error) {
         console.error(`❌ Failed to pull exercise ${remote.id}:`, error);
@@ -522,8 +439,6 @@ export class SyncService {
   // ==============================================
 
   private async syncSets(userId: string): Promise<void> {
-    console.log('📊 Syncing sets...');
-
     await this.pushSets(userId);
     await this.pullSets(userId);
   }
@@ -549,10 +464,6 @@ export class SyncService {
             try {
               // Skip sets without repetitions or orderIndex (invalid data)
               if (!set.deletedAt && (!set.repetitions || set.orderIndex === undefined || set.orderIndex === null)) {
-                console.warn(`⚠️ Skipping set ${set.id} - missing repetitions or orderIndex`, {
-                  repetitions: set.repetitions,
-                  orderIndex: set.orderIndex,
-                });
                 // Mark as synced to prevent infinite retry
                 await storageService.updateSet(set.id, {
                   needsSync: false,
@@ -609,12 +520,6 @@ export class SyncService {
         }
       }
     }
-    
-    if (syncedCount > 0) {
-      console.log(`✅ Synced ${syncedCount} sets`);
-    } else {
-      console.log('✅ No sets to push');
-    }
   }
 
   private async pullSets(userId: string): Promise<void> {
@@ -638,12 +543,7 @@ export class SyncService {
       .in('exercise_id', exerciseIds);
 
     if (error) throw error;
-    if (!data || data.length === 0) {
-      console.log('✅ No remote sets to pull');
-      return;
-    }
-
-    console.log(`📥 Pulling ${data.length} sets...`);
+    if (!data || data.length === 0) return;
 
     for (const remote of data) {
       try {
@@ -651,10 +551,7 @@ export class SyncService {
         const local = await storageService.getSetByIdIncludingDeleted(remote.id);
 
         // Skip if locally deleted (soft delete)
-        if (local?.deletedAt) {
-          console.log(`⏭️ Skipping locally deleted set #${remote.order_index + 1}`);
-          continue;
-        }
+        if (local?.deletedAt) continue;
 
         if (!local) {
           await storageService.createSet({
@@ -680,7 +577,6 @@ export class SyncService {
             syncedAt: new Date(),
             needsSync: false,
           });
-          console.log(`✅ Pulled new set #${remote.order_index + 1}${remote.deleted_at ? ' (deleted)' : ''}`);
           continue;
         }
 
@@ -708,7 +604,6 @@ export class SyncService {
             syncedAt: new Date(),
             needsSync: false,
           });
-          console.log(`✅ Updated set from remote #${remote.order_index + 1}${remote.deleted_at ? ' (deleted)' : ''}`);
         }
       } catch (error) {
         console.error(`❌ Failed to pull set ${remote.id}:`, error);

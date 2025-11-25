@@ -78,7 +78,6 @@ export function DatePicker({
         }
       } catch (e) {
         // Data inválida, não faz nada
-        console.log('Data inválida:', formatted);
       }
     }
   };

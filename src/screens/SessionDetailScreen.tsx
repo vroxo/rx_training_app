@@ -6,23 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { Card, Button, RestTimerModal, SyncStatusIndicator, Select, TechniqueFields } from '../components';
 import { SPACING, TYPOGRAPHY, getThemeColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -38,72 +24,12 @@ import { getConjugatedType } from '../models/Exercise';
 import type { SetType } from '../models/Set';
 import type { TechniqueType } from '../constants/techniques';
 
-// Create drag handle context
-const DragHandleContext = React.createContext<any>(null);
-
-// Sortable Exercise Item Component
-interface SortableExerciseItemProps {
-  id: string;
-  children: React.ReactNode;
-}
-
-function SortableExerciseItem({ id, children }: SortableExerciseItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition: isDragging ? transition : `${transition}, transform 200ms ease`,
-    opacity: isDragging ? 0.8 : 1,
-    zIndex: isDragging ? 1000 : 1,
-    scale: isDragging ? 1.02 : 1,
-    boxShadow: isDragging 
-      ? '0 8px 16px rgba(0, 0, 0, 0.2), 0 0 0 2px rgba(37, 99, 235, 0.5)' 
-      : 'none',
-  };
-
-  return (
-    <DragHandleContext.Provider value={{ attributes, listeners }}>
-      <View ref={setNodeRef} style={style}>
-        {children}
-      </View>
-    </DragHandleContext.Provider>
-  );
-}
-
-// Drag Handle Component - apenas o ícone é arrastável
-function DragHandle() {
-  const dragHandleProps = React.useContext(DragHandleContext);
-  const { isDark } = useTheme();
-  const colors = getThemeColors(isDark);
-  
-  return (
-    <View 
-      {...dragHandleProps?.attributes} 
-      {...dragHandleProps?.listeners}
-      style={{ 
-        marginLeft: SPACING.xs,
-        marginRight: SPACING.xs,
-        padding: SPACING.xs,
-        cursor: 'grab',
-        touchAction: 'none',
-        userSelect: 'none',
-      }}
-    >
-      <Ionicons 
-        name="reorder-three-outline" 
-        size={24} 
-        color={colors.text.tertiary} 
-      />
-    </View>
-  );
-}
+// Types for grouped exercises rendering
+type GroupedExercise = {
+  isConjugated: boolean;
+  conjugatedType?: string;
+  exercises: Exercise[];
+};
 
 interface SessionDetailScreenProps {
   session: Session;
@@ -187,11 +113,9 @@ export function SessionDetailScreen({
   // Recarrega session do storage quando sync completa
   useEffect(() => {
     if (lastSyncedAt) {
-      console.log('🔄 [SESSION_DETAIL] Recarregando session após sync...');
       storageService.getSessionById(session.id).then((updatedSession) => {
         if (updatedSession) {
           setCurrentSession(updatedSession);
-          console.log('✅ [SESSION_DETAIL] Session recarregada');
         }
       }).catch((error) => {
         console.error('❌ [SESSION_DETAIL] Erro ao recarregar session:', error);
@@ -261,7 +185,6 @@ export function SessionDetailScreen({
       // Debug: Log sets with techniques
       sets.forEach(set => {
         if (set.technique && set.technique !== 'standard') {
-          console.log(`🎯 Set ${set.id} - Technique: ${set.technique}`, {
             dropSetWeights: set.dropSetWeights,
             restPauseDuration: set.restPauseDuration,
             restPauseReps: set.restPauseReps,
@@ -388,17 +311,30 @@ export function SessionDetailScreen({
   };
 
   const handleDeleteSet = async (exerciseId: string, setId: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta série?')) {
-      return;
-    }
-    try {
-      await storageService.deleteSet(setId);
-      await loadSets(exerciseId);
-      toast.success('Série excluída!');
-    } catch (error) {
-      console.error('Error deleting set:', error);
-      toast.error('Erro ao excluir série');
-    }
+    Alert.alert(
+      'Excluir Série',
+      'Tem certeza que deseja excluir esta série?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await storageService.deleteSet(setId);
+              await loadSets(exerciseId);
+              toast.success('Série excluída!');
+            } catch (error) {
+              console.error('Error deleting set:', error);
+              toast.error('Erro ao excluir série');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleDuplicateSet = async (exerciseId: string, setId: string) => {
@@ -452,54 +388,68 @@ export function SessionDetailScreen({
     );
   };
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        delay: 250, // 250ms de pressão antes de ativar o drag
-        tolerance: 5, // Permite 5px de movimento durante o delay
-      },
-    })
-  );
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (!over || active.id === over.id) {
-      return;
-    }
-
+  // Move exercise up in the list
+  const moveExerciseUp = async (exerciseId: string) => {
     try {
-      const oldIndex = exercises.findIndex((ex) => ex.id === active.id);
-      const newIndex = exercises.findIndex((ex) => ex.id === over.id);
-
-      if (oldIndex === -1 || newIndex === -1) return;
-
-      // Reorder array
-      const reorderedExercises = arrayMove(exercises, oldIndex, newIndex);
-
-      // Update orderIndex for all exercises
+      const currentIndex = exercises.findIndex((ex) => ex.id === exerciseId);
+      if (currentIndex <= 0) return; // Already at top
+      
+      const reorderedExercises = [...exercises];
+      [reorderedExercises[currentIndex - 1], reorderedExercises[currentIndex]] = 
+        [reorderedExercises[currentIndex], reorderedExercises[currentIndex - 1]];
+      
       const updatedExercises = reorderedExercises.map((ex, idx) => ({
         ...ex,
         orderIndex: idx,
         needsSync: true,
       }));
-
-      // Update state immediately for smooth UX
+      
       setExercises(updatedExercises);
-
-      // Update in storage
+      
       for (const ex of updatedExercises) {
         await storageService.updateExercise(ex.id, {
           orderIndex: ex.orderIndex,
           needsSync: true,
         });
       }
-
+      
       toast.success('Ordem atualizada!');
     } catch (error) {
-      console.error('Error reordering exercises:', error);
-      toast.error('Erro ao reordenar exercícios');
-      // Reload to revert on error
+      console.error('Error moving exercise up:', error);
+      toast.error('Erro ao reordenar exercício');
+      await loadExercises();
+    }
+  };
+
+  // Move exercise down in the list
+  const moveExerciseDown = async (exerciseId: string) => {
+    try {
+      const currentIndex = exercises.findIndex((ex) => ex.id === exerciseId);
+      if (currentIndex === -1 || currentIndex >= exercises.length - 1) return; // Already at bottom
+      
+      const reorderedExercises = [...exercises];
+      [reorderedExercises[currentIndex], reorderedExercises[currentIndex + 1]] = 
+        [reorderedExercises[currentIndex + 1], reorderedExercises[currentIndex]];
+      
+      const updatedExercises = reorderedExercises.map((ex, idx) => ({
+        ...ex,
+        orderIndex: idx,
+        needsSync: true,
+      }));
+      
+      setExercises(updatedExercises);
+      
+      for (const ex of updatedExercises) {
+        await storageService.updateExercise(ex.id, {
+          orderIndex: ex.orderIndex,
+          needsSync: true,
+        });
+      }
+      
+      toast.success('Ordem atualizada!');
+    } catch (error) {
+      console.error('Error moving exercise down:', error);
+      toast.error('Erro ao reordenar exercício');
       await loadExercises();
     }
   };
@@ -581,7 +531,6 @@ export function SessionDetailScreen({
       
       // Debug: Log Rest Pause data
       if (editValues.technique === 'restpause') {
-        console.log('🎯 [REST PAUSE] Salvando série:', {
           technique: editValues.technique,
           restPauseReps: editValues.restPauseReps,
           restPauseRepsLength: editValues.restPauseReps.length,
@@ -692,21 +641,33 @@ export function SessionDetailScreen({
   };
 
   const handleDelete = () => {
-    if (!confirm('Tem certeza que deseja excluir esta sessão? Esta ação não pode ser desfeita.')) {
-      return;
-    }
-
-    setIsDeleting(true);
-    storageService.deleteSession(currentSession.id)
-      .then(() => {
-        toast.success('Sessão excluída!');
-        onDelete();
-      })
-      .catch((error) => {
-        console.error('Error deleting session:', error);
-        toast.error('Não foi possível excluir a sessão');
-        setIsDeleting(false);
-      });
+    Alert.alert(
+      'Excluir Sessão',
+      'Tem certeza que deseja excluir esta sessão? Esta ação não pode ser desfeita.',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => {
+            setIsDeleting(true);
+            storageService.deleteSession(currentSession.id)
+              .then(() => {
+                toast.success('Sessão excluída!');
+                onDelete();
+              })
+              .catch((error) => {
+                console.error('Error deleting session:', error);
+                toast.error('Não foi possível excluir a sessão');
+                setIsDeleting(false);
+              });
+          },
+        },
+      ]
+    );
   };
 
   const handleToggleSetComplete = async (setId: string, exerciseId: string, isCompleted: boolean) => {
@@ -821,23 +782,13 @@ export function SessionDetailScreen({
             </Text>
           </View>
         ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={exercises.map((ex) => ex.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <View style={styles.exercisesList}>
-                {groupedExercises.map((group, groupIndex) => {
+          <View style={styles.exercisesList}>
+            {groupedExercises.map((group, groupIndex) => {
               // Renderiza grupo conjugado
               if (group.isConjugated) {
-                // Use first exercise ID as group representative
                 const groupId = group.exercises[0]?.id || `group-${groupIndex}`;
                 return (
-                  <SortableExerciseItem key={groupId} id={groupId}>
+                  <View key={groupId}>
                     <View 
                       style={[
                         styles.conjugatedGroup,
@@ -997,7 +948,35 @@ export function SessionDetailScreen({
                                   )}
                                 </View>
                                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                  <DragHandle />
+                                  {/* Reorder buttons */}
+                                  <TouchableOpacity
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      moveExerciseUp(exercise.id);
+                                    }}
+                                    style={{ marginRight: SPACING.xs, padding: SPACING.xs }}
+                                    disabled={exercises.findIndex(ex => ex.id === exercise.id) === 0}
+                                  >
+                                    <Ionicons 
+                                      name="arrow-up" 
+                                      size={20} 
+                                      color={exercises.findIndex(ex => ex.id === exercise.id) === 0 ? colors.border : colors.text.tertiary} 
+                                    />
+                                  </TouchableOpacity>
+                                  <TouchableOpacity
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      moveExerciseDown(exercise.id);
+                                    }}
+                                    style={{ marginRight: SPACING.sm, padding: SPACING.xs }}
+                                    disabled={exercises.findIndex(ex => ex.id === exercise.id) === exercises.length - 1}
+                                  >
+                                    <Ionicons 
+                                      name="arrow-down" 
+                                      size={20} 
+                                      color={exercises.findIndex(ex => ex.id === exercise.id) === exercises.length - 1 ? colors.border : colors.text.tertiary} 
+                                    />
+                                  </TouchableOpacity>
                                   <TouchableOpacity
                                     onPress={(e) => {
                                       e.stopPropagation();
@@ -1401,7 +1380,7 @@ export function SessionDetailScreen({
                       );
                     })}
                     </View>
-                  </SortableExerciseItem>
+                  </View>
                 );
               }
 
@@ -1412,7 +1391,7 @@ export function SessionDetailScreen({
               const isLoadingSets = loadingSets[exercise.id];
 
               return (
-                <SortableExerciseItem key={exercise.id} id={exercise.id}>
+                <View key={exercise.id}>
                   <View style={styles.exerciseContainer}>
                   <TouchableOpacity
                     style={[
@@ -1439,7 +1418,35 @@ export function SessionDetailScreen({
                       )}
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <DragHandle />
+                      {/* Reorder buttons */}
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          moveExerciseUp(exercise.id);
+                        }}
+                        style={{ marginRight: SPACING.xs, padding: SPACING.xs }}
+                        disabled={exercises.findIndex(ex => ex.id === exercise.id) === 0}
+                      >
+                        <Ionicons 
+                          name="arrow-up" 
+                          size={20} 
+                          color={exercises.findIndex(ex => ex.id === exercise.id) === 0 ? colors.border : colors.text.tertiary} 
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          moveExerciseDown(exercise.id);
+                        }}
+                        style={{ marginRight: SPACING.sm, padding: SPACING.xs }}
+                        disabled={exercises.findIndex(ex => ex.id === exercise.id) === exercises.length - 1}
+                      >
+                        <Ionicons 
+                          name="arrow-down" 
+                          size={20} 
+                          color={exercises.findIndex(ex => ex.id === exercise.id) === exercises.length - 1 ? colors.border : colors.text.tertiary} 
+                        />
+                      </TouchableOpacity>
                       <TouchableOpacity
                         onPress={(e) => {
                           e.stopPropagation();
@@ -1866,12 +1873,10 @@ export function SessionDetailScreen({
                     </View>
                   )}
                   </View>
-                </SortableExerciseItem>
+                </View>
               );
             })}
-              </View>
-            </SortableContext>
-          </DndContext>
+          </View>
         )}
       </Card>
 

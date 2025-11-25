@@ -116,10 +116,5 @@ export function formatLocalDate(date: Date, formatString: string, options?: any)
  * Debug: exibe informações sobre uma data em diferentes formatos
  */
 export function debugDate(date: Date, label: string = 'Date') {
-  console.log(`\n🕐 ${label}:`);
-  console.log(`  Local String: ${date.toString()}`);
-  console.log(`  UTC String:   ${date.toISOString()}`);
-  console.log(`  Timezone:     ${getTimezoneInfo().offsetString} (${getTimezoneName()})`);
-  console.log(`  Timestamp:    ${date.getTime()}`);
 }
 
