@@ -29,6 +29,7 @@ export interface Set {
   clusterReps?: number; // Reps por mini-série
   clusterRestDuration?: number; // Descanso entre clusters em segundos
   
+  completedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;

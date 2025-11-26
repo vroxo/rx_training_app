@@ -14,7 +14,7 @@ import { SPACING, TYPOGRAPHY, getThemeColors } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { toast } from '../services/toast';
 import { storageService } from '../services/storage';
-import type { Session, Exercise, Set } from '../models';
+import type { Session, Exercise, Set as SetModel } from '../models';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { calculateRPEFromRIR, getRPELabel } from '../utils/rpe';
@@ -59,7 +59,7 @@ export function SessionDetailScreen({
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loadingExercises, setLoadingExercises] = useState(true);
   const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set());
-  const [exerciseSets, setExerciseSets] = useState<Record<string, Set[]>>({});
+  const [exerciseSets, setExerciseSets] = useState<Record<string, SetModel[]>>({});
   const [loadingSets, setLoadingSets] = useState<Record<string, boolean>>({});
   const [editingSet, setEditingSet] = useState<{ exerciseId: string; setId: string; isNew?: boolean } | null>(null);
   const [editValues, setEditValues] = useState<{ 
@@ -185,6 +185,9 @@ export function SessionDetailScreen({
       // Debug: Log sets with techniques
       sets.forEach(set => {
         if (set.technique && set.technique !== 'standard') {
+          console.log('Set with technique:', {
+            id: set.id,
+            technique: set.technique,
             dropSetWeights: set.dropSetWeights,
             restPauseDuration: set.restPauseDuration,
             restPauseReps: set.restPauseReps,
@@ -281,7 +284,7 @@ export function SessionDetailScreen({
     const isConjugated = !!exercise?.conjugatedGroup;
     const conjugatedRestTime = exercise?.conjugatedGroup ? conjugatedGroupRestTime[exercise.conjugatedGroup] : undefined;
     
-    const newTempSet: Set = {
+    const newTempSet: SetModel = {
       id: tempId,
       userId: currentSession.userId,
       exerciseId,
@@ -454,7 +457,7 @@ export function SessionDetailScreen({
     }
   };
 
-  const startEditingSet = (exerciseId: string, set: Set, isNew = false) => {
+  const startEditingSet = (exerciseId: string, set: SetModel, isNew = false) => {
     setEditingSet({ exerciseId, setId: set.id, isNew });
     setEditValues({
       weight: set.weight.toString(),
@@ -531,6 +534,7 @@ export function SessionDetailScreen({
       
       // Debug: Log Rest Pause data
       if (editValues.technique === 'restpause') {
+        console.log('Rest Pause data:', {
           technique: editValues.technique,
           restPauseReps: editValues.restPauseReps,
           restPauseRepsLength: editValues.restPauseReps.length,
@@ -582,10 +586,8 @@ export function SessionDetailScreen({
           clusterRestDuration,
           notes: undefined,
           completedAt: undefined,
-          deletedAt: undefined,
-          syncedAt: undefined,
           needsSync: true,
-        });
+        } as any);
         
         // Limpa o ID temporário
         if (tempSetId === editingSet.setId) {
@@ -631,6 +633,7 @@ export function SessionDetailScreen({
         dropSetWeights: [],
         dropSetReps: [],
         restPauseDuration: '',
+        restPauseReps: [],
         clusterReps: '',
         clusterRestDuration: ''
       });
@@ -673,7 +676,7 @@ export function SessionDetailScreen({
   const handleToggleSetComplete = async (setId: string, exerciseId: string, isCompleted: boolean) => {
     try {
       await storageService.updateSet(setId, {
-        completedAt: isCompleted ? null : new Date(),
+        completedAt: isCompleted ? undefined : new Date(),
         needsSync: true,
       });
       
@@ -690,7 +693,7 @@ export function SessionDetailScreen({
   const handleToggleExerciseComplete = async (exerciseId: string, isCompleted: boolean) => {
     try {
       await storageService.updateExercise(exerciseId, {
-        completedAt: isCompleted ? null : new Date(),
+        completedAt: isCompleted ? undefined : new Date(),
         needsSync: true,
       });
       
@@ -715,7 +718,7 @@ export function SessionDetailScreen({
     try {
       if (currentSession.completedAt) {
         await storageService.updateSession(currentSession.id, {
-          completedAt: null,
+          completedAt: undefined,
           needsSync: true,
         });
         toast.success('Sessão marcada como não concluída!');
@@ -744,8 +747,8 @@ export function SessionDetailScreen({
         <Button title="Voltar" onPress={onBack} variant="outline" size="small" />
       </View>
 
-      {isCompleted && (
-        <Card style={[styles.card, { backgroundColor: colors.success + '10', borderColor: colors.success, borderWidth: 2 }]}>
+      {isCompleted && currentSession.completedAt && (
+        <Card style={{ marginBottom: SPACING.md, backgroundColor: (colors.success + '10') as any, borderColor: colors.success, borderWidth: 2 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.xs }}>
             <Ionicons name="checkmark-circle" size={24} color={colors.success} style={{ marginRight: SPACING.sm }} />
             <Text style={[styles.completedTitle, { color: colors.success }]}>Treino Concluído!</Text>
@@ -1170,10 +1173,8 @@ export function SessionDetailScreen({
                                               {/* Linha 2: Tipo e Técnica */}
                                               <View style={styles.setEditRow2}>
                                                 <View key={`type-${set.id}`} style={styles.setInputGroup}>
-                                                  <Text style={[styles.setInputLabel, { color: colors.text.secondary }]}>
-                                                    Tipo
-                                                  </Text>
                                                   <Select
+                                                    label="Tipo"
                                                     value={editValues.setType}
                                                     onChange={(value) => setEditValues({ ...editValues, setType: value })}
                                                     options={[{ value: '', label: 'Nenhum' }, ...SET_TYPES]}
@@ -1323,7 +1324,7 @@ export function SessionDetailScreen({
                                                 {/* Botão de cronômetro com tempo de descanso para exercícios não-conjugados */}
                                                 {!exercise.conjugatedGroup && (
                                                   <TouchableOpacity 
-                                                    onPress={() => handleStartTimer(set.restTime)}
+                                                    onPress={() => handleStartTimer(set.restTime || 60)}
                                                     style={[styles.restTimerButton, { backgroundColor: colors.background.secondary }]}
                                                   >
                                                     <Ionicons 
@@ -1642,20 +1643,16 @@ export function SessionDetailScreen({
                                     {/* Linha 2: Tipo e Técnica */}
                                     <View style={styles.setEditRow2}>
                                       <View key={`type-${set.id}`} style={styles.setInputGroup}>
-                                        <Text style={[styles.setInputLabel, { color: colors.text.secondary }]}>
-                                          Tipo
-                                        </Text>
                                         <Select
+                                          label="Tipo"
                                           value={editValues.setType}
                                           onChange={(value) => setEditValues({ ...editValues, setType: value })}
                                           options={[{ value: '', label: 'Nenhum' }, ...SET_TYPES]}
                                         />
                                       </View>
                                       <View key={`technique-${set.id}`} style={styles.setInputGroup}>
-                                        <Text style={[styles.setInputLabel, { color: colors.text.secondary }]}>
-                                          Técnica
-                                        </Text>
                                         <Select
+                                          label="Técnica"
                                           value={editValues.technique}
                                           onChange={(value) => setEditValues({ ...editValues, technique: value })}
                                           options={TECHNIQUES}
@@ -1821,7 +1818,7 @@ export function SessionDetailScreen({
                                     
                                     <View style={styles.setActions}>
                                       <TouchableOpacity 
-                                        onPress={() => handleStartTimer(set.restTime)}
+                                        onPress={() => handleStartTimer(set.restTime || 60)}
                                         style={[styles.restTimerButton, { backgroundColor: colors.background.secondary }]}
                                       >
                                         <Ionicons 
@@ -1896,7 +1893,7 @@ export function SessionDetailScreen({
           <View style={styles.infoCompactItem}>
             <Text style={[styles.infoCompactLabel, { color: colors.text.secondary }]}>Data Agendada:</Text>
             <Text style={[styles.infoCompactValue, { color: colors.text.primary }]}>
-              {format(currentSession.scheduledAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+              {currentSession.scheduledAt ? format(currentSession.scheduledAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : 'Não agendado'}
             </Text>
           </View>
           <View style={styles.infoCompactItem}>
@@ -2345,9 +2342,6 @@ const styles = StyleSheet.create({
   },
   conjugatedSetsContainer: {
     marginLeft: 44, // Compensa o badge de número (32px) + marginRight (12px)
-  },
-  exerciseContainer: {
-    marginBottom: SPACING.sm,
   },
   techniqueDetailsInline: {
     width: '100%',

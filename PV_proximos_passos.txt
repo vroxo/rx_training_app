@@ -29,6 +29,11 @@ Relatório da Periodização:
     Histórico de Tempos de Descanso: Mostrar o tempo médio de descanso usado em treinos anteriores para aquele exercício, ajudando o usuário a manter consistência.
     Notificação de Cronômetro: Adicionar vibração/som quando o cronômetro terminar (se ainda não implementado).
 
+Sessions:
+    1. Implementar contador de tempo para duração do treino
+        - Botão para iniciar treino, contador fica no topo da tela contando o tempo do treino
+        - Botão finalizar treino
+        
 
 Erros no Mobile:
     1.  No Modal dos gráficos o Header está ficando atrás das informação de data e bateria do próprio telefone

@@ -18,9 +18,6 @@ export function useAutoSync() {
     // 1. User is logged in
     // 2. User is online
     if (!user || !isOnline) {
-        userLoggedIn: !!user,
-        isOnline,
-      });
       return;
     }
 

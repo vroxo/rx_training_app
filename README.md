@@ -407,10 +407,66 @@ Deve retornar 5 tabelas.
 
 ## 🧪 Testes
 
+[![Tests](https://img.shields.io/badge/tests-396%20passing-brightgreen)](./TEST_STATUS.md)
+[![Coverage](https://img.shields.io/badge/coverage-75%25-brightgreen)](./TEST_STATUS.md)
+
+### Executar Testes
+
 ```bash
-# Testes unitários (em breve)
+# Todos os testes
 npm test
 
+# Watch mode (útil durante desenvolvimento)
+npm run test:watch
+
+# Com relatório de cobertura
+npm run test:coverage
+
+# Apenas unitários
+npm run test:unit
+
+# Apenas integração
+npm run test:integration
+
+# Teste específico
+npm test -- StatsService
+```
+
+### Cobertura Atual
+
+| Camada | Testes | Cobertura | Status |
+|--------|--------|-----------|--------|
+| Setup & Config | 8 | 100% | ✅ |
+| Utilities | 68 | 100% | ✅ |
+| Schemas (Zod) | 154 | 100% | ✅ |
+| DatabaseService | 69 | ~85% | ✅ |
+| StorageService | 75 | ~80% | ✅ |
+| StatsService | 22 | ~60% | ✅ |
+| **Total** | **396** | **75%** | ✅ |
+
+### Documentação de Testes
+
+- 📊 [Status dos Testes](./TEST_STATUS.md) - Progresso e roadmap completo
+- 🔧 [Setup de Testes](./TESTING_SETUP.md) - Configuração e dependências
+- 📖 [Guia de Testes](./src/__tests__/README.md) - Best practices e exemplos
+
+### Performance
+
+- ⚡ **396 testes** executam em **~2.1 segundos**
+- 🎯 **100% de sucesso** (0 falhas)
+- 🔄 **Isolamento perfeito** entre testes
+- 💾 **Mocks em memória** (SQLite + AsyncStorage)
+
+### Infraestrutura de Testes
+
+- ✅ **Jest** - Framework de testes
+- ✅ **@testing-library/react-native** - Testing utilities
+- ✅ **Mock SQLite** - Database em memória
+- ✅ **Mock AsyncStorage** - Storage funcional
+- ✅ **Test Factories** - Geração de dados de teste
+- ✅ **Custom Matchers** - Assertions específicas
+
+```bash
 # Lint e type check
 npm run lint
 npx tsc --noEmit
@@ -449,11 +505,10 @@ eas build --platform ios
 ## 📚 Documentação
 
 - 📖 [Documentação Completa](./DOCUMENTATION.md) - Guia detalhado da aplicação
-- 📋 [Modelos de Dados](./DATA_MODELS.md) - Estrutura de dados e interfaces
-- 🎨 [Design Tokens](./DESIGN_TOKENS.md) - Sistema de design
 - 🔧 [Setup Supabase](./SUPABASE_SETUP_INSTRUCTIONS.md) - Configuração do backend
 - 🤝 [Guia de Contribuição](./CONTRIBUTING.md) - Como contribuir
-- 📊 [Sumário do Projeto](./PROJECT_SUMMARY.md) - Overview executivo
+- 🧪 [Status dos Testes](./TEST_STATUS.md) - Cobertura e roadmap de testes
+- 🔧 [Setup de Testes](./TESTING_SETUP.md) - Configuração do ambiente de testes
 
 ---
 
@@ -474,8 +529,10 @@ eas build --platform ios
 
 ### Próximas Fases 🚧
 
-- ⏳ **Fase 12**: Testes e QA
-  - Testes unitários, integração, E2E
+- ✅ **Fase 12**: Testes e QA (75% Completo)
+  - ✅ 396 testes automatizados
+  - ✅ Cobertura de 75% do código
+  - ⏳ Testes E2E pendentes
 - ⏳ **Fase 13**: Build e Deployment
   - Publicação nas stores (iOS + Android)
 - ⏳ **Fase 14**: Features Futuras

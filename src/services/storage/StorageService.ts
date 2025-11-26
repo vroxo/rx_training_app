@@ -92,23 +92,11 @@ export class StorageService {
 
   public async deletePeriodization(id: string): Promise<void> {
     const deletedAt = new Date();
-      id,
-      deletedAt,
-      deletedAtISO: deletedAt.toISOString(),
-    });
     
     await this.update<Periodization>(KEYS.PERIODIZATIONS, id, {
       deletedAt,
       needsSync: true,
     } as any);
-    
-    // Verify the update
-    const updated = await this.getPeriodizationByIdIncludingDeleted(id);
-      id: updated?.id,
-      name: updated?.name,
-      deletedAt: updated?.deletedAt,
-      needsSync: updated?.needsSync,
-    });
   }
 
   // ==============================================
@@ -484,14 +472,14 @@ export class StorageService {
     const originalExercises = await this.getExercisesBySession(sessionId);
 
     // Create duplicate session (without "(cópia)" in the name)
-    // Explicitly omit fields that should not be copied
-    const { id: _omitId, createdAt: _omitCreatedAt, updatedAt: _omitUpdatedAt, syncedAt: _omitSyncedAt, ...sessionData } = originalSession;
-    
-    const duplicateSession = {
-      ...sessionData,
+    const duplicateSession: any = {
+      userId: originalSession.userId,
+      periodizationId: originalSession.periodizationId,
       name: originalSession.name, // Keep original name
-      status: 'planned' as const, // Reset status to planned
+      scheduledAt: originalSession.scheduledAt,
+      status: 'planned', // Reset status to planned
       completedAt: undefined, // Reset completion
+      notes: originalSession.notes,
       needsSync: true,
     };
 
@@ -528,7 +516,7 @@ export class StorageService {
         };
         delete duplicateSet.id; // Force remove id if it exists
         
-        const newSet = await this.createSet(duplicateSet);
+        await this.createSet(duplicateSet);
       }
     }
 
